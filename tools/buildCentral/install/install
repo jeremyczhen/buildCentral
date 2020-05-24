@@ -1,0 +1,24 @@
+#!/bin/sh
+
+sudo apt install python-setuptools
+sudo pip install python-magic
+sudo pip install networkx
+sudo pip install simplejson
+sudo pip install matplotlib
+sudo apt install python-tk
+
+sudo apt install cppcheck
+sudo apt install astyle
+sudo apt install cloc
+
+sudo cp mk /usr/bin
+if ! [ -f ~/.build_central ]; then
+    cp .build_central ~
+fi
+if [ -e /usr/bin/gmk ]; then
+    sudo rm /usr/bin/gmk
+fi
+sudo ln -s mk /usr/bin/gmk
+
+cp .astylerc ~
+

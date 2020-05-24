@@ -1,0 +1,103 @@
+﻿tcfg - Target Configuration
+1. Target Configuration的功能是：
+配置版本发布以及制作目标板image时所需要的文件；
+定义版本发布以及目标板上的目录结构；
+将文件复制到对应的目录结构中。
+
+tcfg位于sgm358/tcfg中，目录结构如下：
+├── config/ --------------------- 配置文件目录
+│   ├── corba_framework.cfg ---- corba framework模块的配置文件
+│   ├── corba_fw_release.cfg --- 发布corba framework时使用的配置文件
+│   ├── odc_release.cfg -------- 发布ODC binary时使用的配置文件
+│   ├── omniORB.cfg ------------ omniORB的配置文件
+│   ├── poco.cfg --------------- poco的配置文件
+│   └── project.cfg ------------ ODC project的配置文件
+└── script/ --------------------- tcfg脚本目录
+    └── make_image.py ----------- tcfg脚本
+
+2. tcfg脚本
+script/make_image.py -h
+usage: make_image.py [-h] [-n] [-t TARGET_ARCH] image_root packages
+
+positional arguments:
+  image_root            specify root of output image; will override IMAGE_ROOT
+                        in config file
+  packages              specify the packages to build; separated by ",";
+                        format: [MAP|GROUP:package_name@]config_file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -n, --no_run          do not run but verify the config file
+  -t TARGET_ARCH, --target_arch TARGET_ARCH
+                        specify target arch. Valid arch include x86_ubuntu, j6
+                        and imx6
+
+注：
+1. 该工具需要用到build central的配置文件；具体配置方式参考https://podcw00002.patac.shanghaigm.com/svn/U358/ODC/CodeLibrary/trunk/sgm358/tools/build/Readme。
+2. 该工具依赖python-magic，需要安装build_central_packages。安装方法见https://podcw00002.patac.shanghaigm.com/svn/U358/ODC/CodeLibrary/branches/odc-sgm358/sgm358/tools/build/Readme
+
+2.1 制作imx6平台上ODC自己的binary发布
+script/make_image.py -t imx6 path/to/image_root GROUP:*@config/odc_release.cfg
+该命令制作ODC自己的binary发布目录，包括poco, omniORB, FreeImage等ODC特有模块的binary，以及ODC自己开发的service，可执行程序，配置文件等。-t选择binary所属的平台，目前支持imx6(CSM), j6(HMI)以及x86_ubuntu(PC)。该命令产生的目录结构位于output/imx6下。
+
+2.2 制作j6平台上Corba Framework的发布
+script/make_image.py -t j6 path/to/image_root GROUP:*@config/corba_fw_release.cfg
+该命令制作corba framework的发布目录，包括target binary以及development版本。target binary包含用板子上运行时所需的所有binary，动态库，配置文件等；development版本除了target binary，还包含开发所需的头文件，idl，idl转换工具，以及corba framework的例子代码。
+
+2.3. 制作j6平台上Corba Framework的某一个发布版本
+   1. script/make_image.py -t j6 path/to/image_root GROUP:binary@config/corba_fw_release.cfg
+   2. script/make_image.py -t j6 path/to/image_root GROUP:dev@config/corba_fw_release.cfg
+   3. script/make_image.py -t j6 path/to/image_root GROUP:binary@config/corba_fw_release.cfg,GROUP:dev@config/corba_fw_release.cfg
+命令1制作corba framework的target binary版本；命令2制作corba framework的development版本；命令3制作corba framework的两个版本，与script/make_image.py -t j6 path/to/image_root GROUP:*@config/corba_fw_release.cfg效果相同。
+
+2.4 测试config文件是否正确，而不执行文件拷贝
+script/make_image.py -t j6 -n path/to/image_root GROUP:*@config/corba_fw_release.cfg
+当修改了config文件，想知道改动是否正确，却又不想执行文件拷贝（通常比较耗时）时，可以使用-n选项。提交config文件之前可以执行一遍带有-n的版本生成命令。
+
+3. 配置文件
+配置文件位于config/目录下，包含生成各个发布颁布所需的配置信息。所有配置文件格式相同，都是json格式。下面以config/corba_framework.cfg为例，说明怎样编写配置文件。
+3.1 MAP和GROUP
+配置文件包含两大类配置：MAP和GROUP。MAP定义源文件到目标文件的映射；GROUP将多个MAP和GROUP集合在一起，定义更大的GROUP。命令行可以指定编译配置文件里的MAP或GROUP，格式如下：
+MAP|GROUP:*|item_name@file_name
+MAP|GROUP - 指定类型是MAP还是GROUP
+*|item_name - 指定定义在配置文件中的类型的名字；如果是*则表示全部。例如MAP:*表示全部的MAP
+file_name - 配置文件名
+3.2 MAP
+MAP是个json object，代表一系列文件映射的集合。每个集合有一个名字，即object的key，例如binary，idl，example，head等。每个集合本身又是json object，代表一系列文件映射。映射的key表示在目标板上的部署路径；映射本身是array，代表一系列属性相同的子映射。每个子映射包含如下属性：
+3.2.1 usr
+文件在目标板上的用户名；目前无效
+3.2.2 mode
+文件在目标板上的访问权限；目前无效
+3.2.3 inclue
+内容是array，包含一系列源文件的路径。这些源文件将会被复制到目标板的部署路径上。
+3.2.3.1 路径格式
+路径支持glob，即通配符，如*.so*。既可以定义文件，也可以定义文件夹。如果是文件则会直接复制到目标板部署路径中；对于文件夹，下面所有文件和子目录都会复制到目标板部署路径中。文件夹有两种定义方式：1)不以/结尾；2)以/结尾。这两种方式的区别举例如下：如果目标板部署路径为/usr/bin，源文件夹为$PROOT/module/config_file，则最终目标板上会产生路径/usr/bin/config_file，该路径下包含$PROOT/module/config_file下所有内容；但是如果源文件夹定义为$PROOT/module/config_file/，则目标板上不会产生路径/usr/bin/config_file，而是将$PROOT/module/config_file下所有内容复制到/usr/bin下。
+3.2.3.2 路径中使用的变量
+    1) $ARCH
+目标架构，包括imx6/j6/x86_ubuntu
+    2) $PROOT
+工程sgm358的绝对路径
+    3) $SROOT
+Tier1 ADK的绝对路径
+    4) $ROOTFS
+Tier1发布的用于烧板子的bin文件所对应的原始目录;该目录与板子上的目录一模一样。
+3.2.4 rename
+内容是json object，定义哪些文件在复制到目标路径前，需要重新命名。例如如果目标板部署路径为/usr/bin，需要将/usr/bin/config_file/a.cfg重命名为/usr/bin/config_file/b.cfg，则在rename下添加如下规则：
+{"config_file/a.cfg" : "b.cfg"}
+注意，只能重命名文件名，不支持目录的重命名。
+3.2.5 ignore
+内容为array，定义哪些源文件不需要复制到目标板部署路径上，同"include"一样，既可以定义文件，也可以定义目录，同时也支持glob格式。例如源文件定义了$PROOT/module/*.so*，却不想复制$PROOT/module/foo.so，则在ignore里增加如下规则：
+"$PROOT/module/foo.so"
+3.2.6 strip
+可以定义为true, false或null。如果为true则该映射里所有的elf文件的符号表都将被strip掉；如果为false则不strip符号表；如果为null或不定义，则使用包含该MAP的GROUP的strip属性；如果GROUP没有strip属性则不做strip。
+
+3.3 GROUP
+GROUP用于将映射和GROUP集合成更大的GROUP，本身定义为json object，表示一系列的GROUP，object的key为GROUP的名字。每个GROUP是一个array，表示一系列sub GROUP。每个sub GROUP是json object，包含如下属性：
+3.3.1 include
+表示本sub GROUP包含的映射，格式是
+    MAP[GROUP]:MAP或GROUP名@配置文件名
+表示需要包含哪个文件中的哪个MAP或GROUP。如果没有@配置文件名，则表示MAP或GROUP来自本文件。
+3.3.2 offset
+该属性为本sub GROUP中所有映射在目标文件系统中添加偏移量。例如：config/corba_fw_release.cfg的GROUP:dev定义了offset为corba_fw_dev；而其包含的GROUP:dev@$PROOT/tcfg/config/corba_framework.cfg定义的offset为dev。如果命令参数中image_root为/a/b/c,则最终GROUP:dev@$PROOT/tcfg/config/corba_framework.cfg里的映射将复制到/a/b/c/corba_fw_dev/dev
+3.3.3 strip
+与MAP中的strip类似。如果GROUP中定义的该属性为true或false则GROUP中的所有映射中的elf文件都做或不做strip。

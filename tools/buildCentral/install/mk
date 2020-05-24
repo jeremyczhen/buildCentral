@@ -1,0 +1,54 @@
+#!/bin/bash
+
+project_root=$dir
+
+guess_project_root()
+{
+    local dir=`pwd`
+    local i
+    local j
+    local signature=(external project tools workspace)
+    local all_sig_found
+    local one_sig_found
+    local files
+    local root=''
+
+    while [ -n "$dir" ]; do
+        all_sig_found=1
+        files=(`ls $dir`)
+        for i in "${signature[@]}"; do 
+            one_sig_found=0
+            for j in "${files[@]}"; do
+                if [ "$i" = "$j" ]; then 
+                    one_sig_found=1
+                    break
+                fi
+            done
+            if [ "$one_sig_found" -eq 0 ]; then
+                all_sig_found=0
+                break
+            fi
+        done
+        if [ "$all_sig_found" -eq 1 ]; then
+            root=$dir
+            break
+        else
+            dir=${dir%/*}
+        fi
+    done
+    if [ -z "$root" ]; then
+        echo "Cannot find project root. Please enter a project and run again."
+        exit -1
+    fi
+    project_root=$root
+}
+
+guess_project_root
+bc_root=$project_root/tools/buildCentral
+
+if [ `basename $0` = 'gmk' ]; then
+    $bc_root/gbuild_central.py "$@"
+else
+    $bc_root/build_central.py "$@"
+fi
+

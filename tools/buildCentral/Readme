@@ -1,0 +1,226 @@
+﻿BuildCentral用户手册
+
+*******************************************************************************
+功能概述
+*******************************************************************************
+BUildCentral是一个软件包(package)编译管理工具，具有如下功能：
+a) 管理Package的依赖关系，根据依赖关系决定Package的编译顺序；并且能够检测循环依赖；
+b) 基于Cmake,管理跨平台的软件包的编译，目前至少支持Windows, Cygwin, Ubuntu, QNX,
+   RH850等，并具有良好的扩展性；
+c) 支持make clean, make unstall, make, make install，verbose, debug/release等不同
+   编译方式和选项；
+
+*******************************************************************************
+1. 安装
+*******************************************************************************
+1.1 用repo下载项目的开发工程，下载后的工程包括如下目录结构：
+    ROOT
+      |--external/
+      |    |--package1/
+      |    |--packageN/
+      |--workspace/
+      |    |--package1/
+      |    |--packageN/
+      |--project/
+      |    |--build/
+      |    |--projroot/
+      |--tools/
+      |    |--tool1/
+      |    |--tool2/
+    external下包含第三方交付物，例如头文件，库文件等。这些交付物将在编译过程中被
+        各个模块使用。
+    workspace下的每个目录就是项目的一个子模块，包含源代码，投文件，库文件等。
+    project目录存放项目相关的编译配置和打包配置。其中最重要的是
+        project/build/build_central.cfg，包含各个软件包的详细定义。
+    tools目录存放项目基本的工具和脚本，BuildCentral就在tools/buildCentral下。
+1.2 安装python package：
+
+*******************************************************************************
+2.运行命令行工具
+*******************************************************************************
+运行BuildCentral之前，必须进入工程下的任意目录，例如ROOT/或ROOT/workspace/或ROOT/workspace/
+2.1 获得帮助
+> mk -h
+usage: build_central.py [-h] [-v] [-d] [-c] [-b] [-l] [-i] [-e]
+                        [-t TARGET_ARCH] [-m BUILD_MODEL] [-a] [-j JOBS]
+                        [-g CMAKE_GENERATOR] [-D CMAKE_DEFINITION]
+                        [packages]
+
+positional arguments:
+  packages              packages to be built; separated by ","
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -v, --verbose         run with verbose
+  -d, --debug           build debug version
+  -c, --clean           clean
+  -b, --clean_build     always go along with -c: -cb means clean followed by
+                        build
+  -l, --list            list all packages
+  -i, --installed_list  show installed files
+  -e, --exclusive       packages not specified for build
+  -t TARGET_ARCH, --target_arch TARGET_ARCH
+                        specify target arch. Use -l for details
+  -m BUILD_MODEL, --build_model BUILD_MODEL
+                        specify a model to build. Use -l for details
+  -a, --dep             build with dependency
+  -j JOBS, --jobs JOBS  Number of jobs for make
+  -g CMAKE_GENERATOR, --cmake_generator CMAKE_GENERATOR
+                        specify a generator for cmake. Use -l for details
+  -D CMAKE_DEFINITION, --cmake_definition CMAKE_DEFINITION
+                        specify cmake definitions separated by ","
+注意：
+1) 如果要同时用-c -v -a等选项，可以缩写为-cva
+2) 选项后面的参数前可以不加空格，如-r 4和-r4都是合法的
+3) mk是对build_central.py的封装
+
+2.1 察看所有软件包
+> mk -l
+说明：列举默认平台所有软件包。若要列举其它平台，如arm-linux, 使用-t选项，
+    即mk -l -tarm-linux
+注意：该命令还会列举许多其它信息供察看。
+
+2.3. 编译软件包
+> mk [-tarm-linux] [package1,package2,...]
+说明：为默认[或指定的arm-linux]平台编译指定的软件包。若要指定多个软件包，用逗号
+    隔开；若要指定所有软件包，用'mk'或'mk __all__'；
+注意：该命令只编译选定的软件包，不编译依赖的软件包！
+
+2.4. 先编译依赖的所有软件包，再编译指定软件包
+> mk -a [package1,package2,...]
+说明：在编译命令的基础上添加-a选项，buildCentral首先解析出所有指定软件包及其
+    依赖的软件包的编译顺序，然后依次编译所有软件包，包含依赖的包。
+    例如包p1依赖p2, p3；p2依赖p3, p5, p3依赖p5, p6，则mk p1,p2将依次编译以下包：
+    p6 p5 p3 p2 p1
+
+2.5. 编译当前软件包
+> cd workspace/package1
+> mk
+说明：如果你已经位于某软件包所在目录下或任意一子目录中，mk命令将自动编译该软件
+    包。在上述命令中，mk命令等同于mk package1
+注意：如果不在任何软件包的目录下，mk将编译整个工程
+
+2.6. 执行一次clean过程
+> mk -c [package1,package2,...]
+说明：在编译命令的基础上添加-c选项对指定package做make uninstall和make clean。
+
+2.7. 先执行一次clean过程，然后做build
+mk -cb [package1,package2,...]
+说明：添加-cb选项清除指定package，包括make uninstall和make clean，然后编译这些包
+
+2.8. 编译调试版本
+> mk -d [package1,package2,...]
+说明：在编译命令的基础上添加-d选项，生成具有调试信息的image
+
+2.9. Verbose编译
+> mk -v [package1,package2,...]
+说明：在编译命令的基础上添加-v选项，将打印更多信息
+
+2.11 显示某个软件包安装的文件
+mk -i [package1,package2,...]
+说明：'-i'选项显示软件包用make install安装的文件
+
+2.12 显示软件包编译时所依赖的软件包
+mk -la [package1,package2,...]
+说明：'-la'选项显示软件包所依赖的软件包及其编译顺序
+
+2.13 编译不同车型（model）
+mk -m model
+说明：可以为不同车型定义不同的集合，加-m选项可以选择编译不同的model
+
+2.运行GUI工具
+> gmk (不推荐)
+
+*******************************************************************************
+3. 配置文件
+*******************************************************************************
+配置文件位于ROOT/project/build/build_central.cfg
+
+3.1 "PROJECT_NAME"
+项目名；暂未使用
+3.1 "HOST"
+主机端对应的平台名，内部使用
+3.1 "TARGET"
+列举所有支持的平台及其描述
+3.1 "DEFAULT_TARGET"
+如果没有指定-t选项，mk命令默认的平台
+3.1 "VARIANT"
+列举所有车型及其描述
+3.1 "DEFAULT_VARIANT"
+如果没有指定-m选项，mk命令默认的车型名
+
+3.7 "PACKAGES"
+定义所有软件包，格式为：
+"软件包名字":{
+    "Path" : "软件包相对工程根目录的路径",
+     "Dependency":["软件包名字1", "软件包名字2"],
+      "Install":true
+}
+
+3.7.1 "Path"
+定义软件包所在路径。该路径是相对工程根目录的路径
+
+3.7.2 "Dependency"
+本软件包所依赖的其它软件包；依次列举，顺序无关；只需定义直接依赖的软件包即可
+
+3.8 "BUILD"
+定义需要编译的平台及每个平台需要编译的软件包
+
+3.8.1.2 "PACKAGES"
+该车型包含的软件包集合
+
+3.8.1.3 "BASE"
+本车型所基于的车型；本车型的软件包将包含所基于车型的所有软件包；依次列举，
+    顺序无关
+
+4.3. 配置BuildCentral
+未经配置的BuildCentral可以编译host版本。若要交叉编译，需要做配置从而
+    BuildCentral可以找到相应的工具链和ADK。
+
+Linux/Cygwin平台上，BuildCentral配置文件是~/.build_central。Windows平台上，
+    配置文件通常是C:\Users\用户名\.build_central
+
+配置文件模板位于ROOT/tools/buildCentral/rules/.build_central
+{
+    "arm-linux" : {
+        "TOOLCHAIN"         : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux",
+        "TOOLCHAIN_CC"      : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux/bin/arm-linux-gnueabihf-gcc",
+        "TOOLCHAIN_CXX"     : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux/bin/arm-linux-gnueabihf-g++",
+        "OTHER_INC_PATH"    : ["~/code/yunos/rootfs/dra7xx-evm/usr/include/base"],
+        "SYSROOT"           : "~/code/yunos/rootfs/dra7xx-evm"
+    },
+    "arm-qnx" : {
+        "TOOLCHAIN"         : "C:/QNX650/host/win32/x86",
+        "TOOLCHAIN_CC"      : "C:/QNX650/host/win32/x86/usr/bin/arm-unknown-nto-qnx6.5.0-gcc.exe",
+        "TOOLCHAIN_CXX"     : "C:/QNX650/host/win32/x86/usr/bin/arm-unknown-nto-qnx6.5.0-g++.exe",
+        "OTHER_LIB_PATH"    : [],
+        "OTHER_INC_PATH"    : [],
+        "SYSROOT"           : ""
+    },
+    "rh850" : {
+        "TOOLCHAIN"         : "",
+        "TOOLCHAIN_CC"      : "C:/ghs/comp_201355/ccv850e.exe",
+        "TOOLCHAIN_CXX"     : "",
+        "TOOLCHAIN_ASM"     : "C:/ghs/comp_201355/ccv850e.exe",
+        "TOOLCHAIN_AR"      : "C:/ghs/comp_201355/ax.exe",
+        "OTHER_LIB_PATH"    : [],
+        "OTHER_INC_PATH"    : [],
+        "SYSROOT"           : ""
+    },
+    "windows" : {
+    },
+    "cygwin" : {
+    },
+    "linux" : {
+    }
+}
+将以上文件复制到，根据实际情况配置好工具链和ADK的目录。
+
+"TOOLCHAIN"：工具链的安装路径，多数情况下未使用
+"TOOLCHAIN_CC"：指定C编译器
+"TOOLCHAIN_CXX"：指定C++编译器
+"TOOLCHAIN_ASM"：指定汇编器
+"TOOLCHAIN_AR"：指定静态包（通常为.a文件）生成器
+"OTHER_INC_PATH": 其它头文件查找路径
+"OTHER_LIB_PATH": 其它库文件查找路径
+SYSROOT：ADK的安装路径; 暂未使用

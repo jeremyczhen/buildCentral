@@ -1,0 +1,26 @@
+﻿1. Corba Framework支持ubuntu12.04和目标板。将corba_fw_release.tar.gz解压后，x86_ubuntu/和target/分别对应两个平台。
+
+2. 每个平台包含两个包：开发包和运行包
+    corba_fw_adk.tar.gz：开发包
+    corba_fw_binary.tar.gz：运行包
+
+3. 开发包corba_fw_adk.tar.gz用于开发基于Corba Framework的应用程序，包含头文件，库文件，idl及idl转换工具，以及example的源代码，目录结构如下：
+
+|-host
+| |-tools
+|     |-omniidl ----------- idl转换工具，运行于ubuntu12.04上
+|  
+|-target
+    |-usr
+        |-bin ------------- binary文件
+        |-include --------- 头文件
+        |-lib ------------- 库文件
+        |-share
+            |-corbafw
+                |-example - example代码
+            |-idl --------- idl文件
+
+4. 运行包corba_fw_binary.tar.gz用于本地运行或拷贝到target上运行，只包含开发包中的binary文件和库文件，而不包含头文件等与运行无关的文件。
+
+5. omniidl用于将idl文件转换为C++代码。该工具在ubuntu12.04上经过验证，在其它平台无法保证可靠运行。使用以下命令将idl转换为C++代码：
+corba_fw_adk/host/tools/omniidl/bin/omniidl -bcxx -Wba [-C生成文件目录] [-I查找路径] idl文件名

@@ -1,0 +1,8 @@
+-pH
+--style=allman
+--align-pointer=name
+--align-reference=name
+-j
+-M60
+--convert-tabs
+#-xC80

@@ -1,0 +1,33 @@
+{
+    "arm-linux" : {
+        "TOOLCHAIN"         : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux",
+        "TOOLCHAIN_CC"      : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux/bin/arm-linux-gnueabihf-gcc",
+        "TOOLCHAIN_CXX"     : "~/gcc-linaro-arm-linux-gnueabihf-4.7-2013.03-20130313_linux/bin/arm-linux-gnueabihf-g++",
+        "OTHER_INC_PATH"    : ["~/code/yunos/rootfs/dra7xx-evm/usr/include/base"],
+        "SYSROOT"           : "~/code/yunos/rootfs/dra7xx-evm"
+    },
+    "arm-qnx" : {
+        "TOOLCHAIN"         : "C:/QNX660/host/win32/x86",
+        "TOOLCHAIN_CC"      : "C:/QNX660/host/win32/x86/usr/bin/arm-unknown-nto-qnx6.6.0eabi-gcc.exe",
+        "TOOLCHAIN_CXX"     : "C:/QNX660/host/win32/x86/usr/bin/arm-unknown-nto-qnx6.6.0eabi-g++.exe",
+        "OTHER_LIB_PATH"    : [],
+        "OTHER_INC_PATH"    : [],
+        "SYSROOT"           : ""
+    },
+    "rh850" : {
+        "TOOLCHAIN"         : "",
+        "TOOLCHAIN_CC"      : "C:/ghs/comp_201355/ccv850e.exe",
+        "TOOLCHAIN_CXX"     : "",
+        "TOOLCHAIN_ASM"     : "C:/ghs/comp_201355/ccv850e.exe",
+        "TOOLCHAIN_AR"      : "C:/ghs/comp_201355/ax.exe",
+        "OTHER_LIB_PATH"    : [],
+        "OTHER_INC_PATH"    : [],
+        "SYSROOT"           : ""
+    },
+    "windows" : {
+    },
+    "cygwin" : {
+    },
+    "linux" : {
+    }
+}
