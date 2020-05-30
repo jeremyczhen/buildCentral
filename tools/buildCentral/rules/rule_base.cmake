@@ -1,3 +1,11 @@
+function(print_variable)
+    message(STATUS "${ARGV0}=${${ARGV0}}")
+endfunction()
+
+function(print_env)
+    message(STATUS "${ARGV0}=$ENV{${ARGV0}}")
+endfunction()
+
 if (${TARGET_ARCH} STREQUAL rh850)
     set(CMAKE_C_LINK_EXECUTABLE    "<CMAKE_C_COMPILER> <CMAKE_C_LINK_FLAGS>   <LINK_FLAGS> <OBJECTS> -o <TARGET>  <LINK_LIBRARIES>")
     SET(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> cr <TARGET> <LINK_FLAGS><OBJECTS>")
@@ -85,14 +93,6 @@ configure_file(
 
 add_custom_target(uninstall
     COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
-
-function(print_variable)
-    message(STATUS "${ARGV0}=${${ARGV0}}")
-endfunction()
-
-function(print_env)
-    message(STATUS "${ARGV0}=$ENV{${ARGV0}}")
-endfunction()
 
 message(STATUS "=========================configuration=========================")
 print_variable(TOOL_ROOT)

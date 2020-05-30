@@ -101,7 +101,7 @@ def init_private_config(config):
                                    'asm_compiler' : '',
                                    'archiver' : '',
                                    'toolchain_file' : '',
-                                   'sys_root' : '',
+                                   'sys_root' : [],
                                    'compiler_type' : '',
                                    'target_arch' : '',
                                    'target_os' : '',
@@ -111,71 +111,76 @@ def init_private_config(config):
                                    'asm_flags' : '',
                                    'release_flags' : '',
                                    'debug_flags' : '',
-                                   'macro_definition' : '',
+                                   'macro_definition' : {},
+                                   'make_var' : {},
                                    'shared_ld_flags' : '',
                                    'exe_ld_flags' : '',
-                                   'lib_search_path' : '',
-                                   'head_search_path' :'' 
+                                   'ld_flags' : '',
+                                   'lib_search_path' : [],
+                                   'head_search_path' : [],
+                                   'env_var' : {},
+                                   'stage_dir' : ''
                                    }
 
 def import_configs(dst, src):
     for item in src:
+        src_value = src[item]
+        if not src_value:
+            continue
         if item == 'TOOLCHAIN':
-            dst['toolchain_root'] =  os.path.expanduser(src['TOOLCHAIN'])
+            dst['toolchain_root'] =  os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_CC':
-            dst['c_compiler'] = os.path.expanduser(src['TOOLCHAIN_CC'])
+            dst['c_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_CXX':
-            dst['cxx_compiler'] = os.path.expanduser(src['TOOLCHAIN_CXX'])
+            dst['cxx_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_ASM':
-            dst['asm_compiler'] = os.path.expanduser(src['TOOLCHAIN_ASM'])
+            dst['asm_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_AR':
-            dst['archiver'] = os.path.expanduser(src['TOOLCHAIN_AR'])
+            dst['archiver'] = os.path.expanduser(src_value)
         elif item == 'SYSROOT':
-            dst['sys_root'] =  os.path.expanduser(src['SYSROOT'])
+            dst['sys_root'] =  [os.path.expanduser(x) for x in src_value]
         elif item == 'COMPILER_TYPE':
-            dst['compiler_type'] = src['COMPILER_TYPE']
+            dst['compiler_type'] = src_value
         elif item == 'TARGET_ARCH':
-            dst['target_arch'] = src['TARGET_ARCH']
+            dst['target_arch'] = src_value
         elif item == 'TARGET_OS':
-            dst['target_os'] = src['TARGET_OS']
+            dst['target_os'] = src_value
         elif item == 'TOOLCHAIN_FILE':
-            dst['toolchain_file'] = src['TOOLCHAIN_FILE']
+            dst['toolchain_file'] = src_value 
+        elif item == 'STAGE_DIR':
+            dst['stage_dir'] = src_value
         elif item == 'CMAKE_GENERATOR':
-            generator = src['CMAKE_GENERATOR']
+            generator = src_value
             if (generator in cmake_generator):
                 dst['cmake_generator'] = generator 
             else:
                 return {'ret' : 'error', 'info' : 'unknown generator %s!'%(generator)}
-        elif item == 'C_FLAGS':
-            if src['C_FLAGS']:
-                dst['c_flags'] += ' ' + src['C_FLAGS']
-        elif item == 'CXX_FLAGS':
-            if src['CXX_FLAGS']:
-                dst['cxx_flags'] += ' ' + src['CXX_FLAGS']
-        elif item == 'ASM_FLAGS':
-            if src['ASM_FLAGS']:
-                dst['asm_flags'] += ' ' + src['ASM_FLAGS']
-        elif item == 'REL_FLAGS':
-            if src['REL_FLAGS']:
-                dst['release_flags'] += ' ' + src['REL_FLAGS']
-        elif item == 'DBG_FLAGS':
-            if src['DBG_FLAGS']:
-                dst['debug_flags'] += ' ' + src['DBG_FLAGS']
         elif item == 'MACRO_DEF':
-            if (src['MACRO_DEF']):
-                dst['macro_definition'] += ';' + ';'.join(src['MACRO_DEF'])
+            dst['macro_definition'].update(src_value)
+        elif item == 'MAKE_VAR':
+            dst['make_var'].update(src_value)
+        elif item == 'C_FLAGS':
+            dst['c_flags'] += ' ' + src_value
+        elif item == 'CXX_FLAGS':
+            dst['cxx_flags'] += ' ' + src_value
+        elif item == 'ASM_FLAGS':
+            dst['asm_flags'] += ' ' + src_value
+        elif item == 'REL_FLAGS':
+            dst['release_flags'] += ' ' + src_value
+        elif item == 'DBG_FLAGS':
+            dst['debug_flags'] += ' ' + src_value
         elif item == 'SHA_LD_FLAGS':
-            if src['SHA_LD_FLAGS']:
-                dst['shared_ld_flags'] += ' ' + src['SHA_LD_FLAGS']
+            dst['shared_ld_flags'] += ' ' + src_value
         elif item == 'EXE_LD_FLAGS':
-            if src['EXE_LD_FLAGS']:
-                dst['exe_ld_flags'] += ' ' + src['EXE_LD_FLAGS']
+            dst['exe_ld_flags'] += ' ' + src_value
         elif item == 'OTHER_LIB_PATH':
-            if src['OTHER_LIB_PATH']:
-                dst['lib_search_path'] = ';'.join([os.path.expanduser(x) for x in src['OTHER_LIB_PATH']]) + ';' + dst['lib_search_path']
+            dst['lib_search_path'] += [os.path.expanduser(x) for x in src_value]
         elif item == 'OTHER_INC_PATH':
-            if src['OTHER_INC_PATH']:
-                dst['head_search_path'] = ';'.join([os.path.expanduser(x) for x in src['OTHER_INC_PATH']]) + ';' + dst['head_search_path']
+            dst['head_search_path'] += [os.path.expanduser(x) for x in src_value]
+        elif item == 'LD_FLAGS':
+            dst['ld_flags'] += ' ' + src_value
+        elif item == 'ENV_VAR':
+            dst['env_var'].update(src_value)
 
     return {'ret' : 'ok', 'info' : None}
 
@@ -215,11 +220,6 @@ def do_import_private_config(config, cfg_file):
             if not config['private'][cfg_arch]['target_os']:
                 return {'ret' : 'error', 'info' : 'TARGET_OS is not defined for %s!'%(arch)}
 
-    for arch in config['private']:
-        for item in config['private'][arch]:
-            config['private'][arch][item] = config['private'][arch][item].lstrip('; ')
-            config['private'][arch][item] = config['private'][arch][item].rstrip('; ')
-
     return {'ret' : 'ok', 'info' : None}
 
 def import_private_config(config):
@@ -256,11 +256,14 @@ def config_package_path(config, arch, pkg, variant):
         config['PACKAGES'][arch][pkg]['PackageFile'] = None 
 
     config['PACKAGES'][arch][pkg]['BuildDir'] = os.path.join(output_dir, 'build', variant, pkg, arch)
-    if arch == config['HOST']:
-        # no variant for host build
-        config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', arch)
+    if config['private'][arch]['stage_dir']:
+        config['PACKAGES'][arch][pkg]['StageDir'] = config['private'][arch]['stage_dir']
     else:
-        config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', variant, arch)
+        if arch == config['HOST']:
+            # no variant for host build
+            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', arch)
+        else:
+            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', variant, arch)
 
 def load_build_config(cfg_dir, proj_root):
     config = {'ret' : 'ok'}
@@ -310,7 +313,6 @@ def load_build_config(cfg_dir, proj_root):
             return config
 
         config['PROJECT_NAME'] = cfg.get('PROJECT_NAME', None)
-        config['RUNTIME_ENV'] = cfg.get('RUNTIME_ENV', {})
         config['LOGO'] = cfg.get('LOGO', None)
 
         config['HOST'] = cfg.get('HOST', None)
@@ -348,10 +350,6 @@ def load_build_config(cfg_dir, proj_root):
 
         config['OUTPUT_DIR'] = os.path.join(proj_root, 'output')
         config['LOG_DIR'] = os.path.join(config['OUTPUT_DIR'], 'log')
-        env_str = ''
-        for env in config['RUNTIME_ENV']:
-            env_str += 'export ' + env + '=' + config['RUNTIME_ENV'][env] + ';'
-        config['RUNTIME_ENV_STR'] = env_str
 
         config['PACKAGES'] = {}
         if 'PACKAGES'in cfg:
@@ -362,15 +360,25 @@ def load_build_config(cfg_dir, proj_root):
                 config['PACKAGES'][arch] = {}
 
         if 'PACKAGES-PER-ARCH'in cfg:
+            config['PACKAGES-PER-ARCH'] = {} 
             for arch in cfg['PACKAGES-PER-ARCH']:
                 if not arch in config['TARGET_LIST']:
                     config['ret'] = 'Error! arch %s in PACKAGES-PER-ARCH tag is invalid!'%(arch)
                     return config
+                config['PACKAGES-PER-ARCH'][arch] = copy.deepcopy(cfg['PACKAGES-PER-ARCH'][arch])
                 for pkg in cfg['PACKAGES-PER-ARCH'][arch]:
                     if not pkg in config['PACKAGES'][arch]:
                         config['PACKAGES'][arch][pkg] = {}
-                    for item in cfg['PACKAGES-PER-ARCH'][arch][pkg]:
-                        config['PACKAGES'][arch][pkg][item] = cfg['PACKAGES-PER-ARCH'][arch][pkg][item]
+
+                    path = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Path', None)
+                    if path:
+                        config['PACKAGES'][arch][pkg]['Path'] = path
+                    dep = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
+                    if dep:
+                        config['PACKAGES'][arch][pkg]['Dependency'] = dep 
+                    install = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Install', None)
+                    if install:
+                        config['PACKAGES'][arch][pkg]['Install'] = install 
 
         config['BUILD'] = {}
         config['VARIANT'] = {}
@@ -431,31 +439,12 @@ def load_build_config(cfg_dir, proj_root):
                             config['BUILD'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
 
     host_stage_dir = os.path.join(config['OUTPUT_DIR'], 'stage', config['HOST'])
-    bins = (os.path.join(config['proj_root'], 'tools', 'bin', config['os_type']),
+    config['tool_path'] = (os.path.join(config['proj_root'], 'tools', 'bin', config['os_type']),
             os.path.join(host_stage_dir, 'bin'),
-            os.path.join(host_stage_dir, 'usr/bin'))
-    libs = (os.path.join(config['proj_root'], 'tools', 'lib', config['os_type']),
+            os.path.join(host_stage_dir, 'usr', 'bin'))
+    config['tool_lib'] = (os.path.join(config['proj_root'], 'tools', 'lib', config['os_type']),
             os.path.join(host_stage_dir, 'lib'),
-            os.path.join(host_stage_dir, 'usr/lib'))
-
-    build_path = ''
-    build_lib = ''
-    for path in bins:
-        if os.path.exists(path):
-            if (build_path):
-                build_path += os.pathsep + path
-            else:
-                build_path = path
-
-    for lib in libs:
-        if os.path.exists(lib):
-            if (build_lib):
-                build_lib += os.pathsep + lib 
-            else:
-                build_lib = lib 
-
-    config['build_path'] = build_path 
-    config['build_lib'] = build_lib 
+            os.path.join(host_stage_dir, 'usr', 'lib'))
 
     return config
 
@@ -466,20 +455,22 @@ def add_definition(cmd, var, value = None):
         cmd += ['-D' + var + '=' + value]
 
 def setup_global_build_env(arch, config):
-    if config['build_path']:
+    if config['tool_path']:
+        pathes = os.pathsep.join(config['tool_path'])
         env = os.getenv('PATH')
         if env:
-            env += os.pathsep + config['build_path']
+            env += os.pathsep + pathes
         else:
-            env = config['build_path']
+            env = pathes
         os.putenv('PATH', env)
 
-    if config['build_lib']:
+    if config['tool_lib']:
+        pathes = os.pathsep.join(config['tool_lib'])
         env = os.getenv('LD_LIBRARY_PATH')
         if env:
-            env += os.pathsep + config['build_lib'] 
+            env += os.pathsep + pathes
         else:
-            env = config['build_lib']
+            env = pathes
         os.putenv('LD_LIBRARY_PATH', env)
 
 def setup_package_build_env(private_config, env, item):
@@ -518,6 +509,18 @@ def get_build_cmd_type(package, arch, config):
 def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs, generator, type, config, cmd):
     private_config = copy.deepcopy(config['private'][arch])
     import_configs(private_config, config['PACKAGES'][arch][package])
+    if 'PACKAGES-PER-ARCH' in config and arch in config['PACKAGES-PER-ARCH'] and package in config['PACKAGES-PER-ARCH'][arch]:
+        import_configs(private_config, config['PACKAGES-PER-ARCH'][arch][package])
+
+    sys_root = private_config['sys_root']
+    stage_root = config['PACKAGES'][arch][package]['StageDir']
+    if stage_root:
+        sys_root += [stage_root]
+
+    make_var = private_config['make_var']
+    macro_var = private_config['macro_definition']
+    lib_pathes = private_config['lib_search_path']
+    head_pathes = private_config['head_search_path']
 
     if get_generator_id(generator, arch, config) == 'nmake':
         make_tool = ['nmake']
@@ -564,20 +567,14 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             cmd.append('-G')
             cmd.append(generator)
 
-            make_var = config['PACKAGES'][arch][package].get('MakeVar', [])
             if make_var:
-                for d in make_var:
+                v = [i + '=' + make_var[i] for i in make_var]
+                for d in v:
                     add_definition(cmd, d)
 
-            macro_var = private_config['macro_definition']
-            package_macro_var = config['PACKAGES'][arch][package].get('BuildVar', [])
-            macro = None
             if macro_var:
-                macro = macro_var
-            if package_macro_var:
-                macro += ';' + ';'.join(package_macro_var)
-            if macro:
-                add_definition(cmd, 'MACRO_DEF', macro)
+                m = [i + '=' + macro_var[i] if macro_var[i] else i for i in macro_var]
+                add_definition(cmd, 'MACRO_DEF', ';'.join(m))
 
             add_definition(cmd, 'MACRO_VARIANT', config['VARIANT_LIST'][variant]['MACRO'])
 
@@ -593,28 +590,22 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             if private_config['cxx_flags']:        add_definition(cmd, 'CMAKE_CXX_FLAGS',  private_config['cxx_flags'])
             if private_config['release_flags']:    add_definition(cmd, 'REL_FLAGS',        private_config['release_flags'])
             if private_config['debug_flags']:      add_definition(cmd, 'DBG_FLAGS',        private_config['debug_flags'])
-            if private_config['shared_ld_flags']:  add_definition(cmd, 'CMAKE_SHARED_LINKER_FLAGS', private_config['shared_ld_flags'])
-            if private_config['exe_ld_flags']:     add_definition(cmd, 'CMAKE_EXE_LINKER_FLAGS', private_config['exe_ld_flags'])
-            if private_config['lib_search_path']:  add_definition(cmd, 'LIB_PATH',         private_config['lib_search_path'])
-            if private_config['head_search_path']: add_definition(cmd, 'INC_PATH',         private_config['head_search_path'])
+            if private_config['shared_ld_flags']:  add_definition(cmd, 'CMAKE_SHARED_LINKER_FLAGS',
+                                                                  private_config['ld_flags'] + ' ' + private_config['shared_ld_flags'])
+            if private_config['exe_ld_flags']:     add_definition(cmd, 'CMAKE_EXE_LINKER_FLAGS',
+                                                                  private_config['ld_flags'] + ' ' + private_config['exe_ld_flags'])
+            if lib_pathes:                         add_definition(cmd, 'LIB_PATH',        ';'.join(lib_pathes))
+            if head_pathes:                        add_definition(cmd, 'INC_PATH',        ';'.join(head_pathes))
 
             if verbose:
                 add_definition(cmd, 'CMAKE_VERBOSE_MAKEFILE', 'on')
             else:
                 add_definition(cmd, 'CMAKE_VERBOSE_MAKEFILE', 'off')
 
-            sys_root = os.getenv('SROOT_OVERRIDE')
-            if not sys_root:
-                sys_root = private_config['sys_root']
-            stage_root = config['PACKAGES'][arch][package]['StageDir']
             if stage_root:
-                if sys_root:
-                    sys_root = stage_root
-                else:
-                    sys_root += ';' + stage_root
                 add_definition(cmd, 'CMAKE_INSTALL_PREFIX', stage_root)
             if sys_root:
-                add_definition(cmd, 'SYSTEM_ROOT', sys_root)
+                add_definition(cmd, 'SYSTEM_ROOT', ';'.join(sys_root))
 
             add_definition(cmd, 'PROJECT_ROOT', config['proj_root'])
 
@@ -639,7 +630,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         setup_package_build_env(private_config, 'CC', 'c_compiler')
         setup_package_build_env(private_config, 'CXX', 'cxx_compiler')
         setup_package_build_env(private_config, 'CFLAGS', 'c_flags')
-        setup_package_build_env(private_config, 'CPPFLAGS', 'cxx_flags')
+        setup_package_build_env(private_config, 'CXXFLAGS', 'cxx_flags')
 
         # if exists 'Makefile' or 'GNUMakefile', make it;
         if stage == 'clean':
@@ -648,21 +639,72 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             cmd += make_tool_with_job
         elif stage == 'make_install':
             cmd += make_tool_with_job + ['install']
+            if stage_root:
+                cmd += ['DESTDIR='+stage_root]
         elif stage == 'uninstall':
             cmd += make_tool + ['uninstall']
         else:
             return[]
 
-        stage_root = config['PACKAGES'][arch][package]['StageDir']
-        make_var = config['PACKAGES'][arch][package].get('MakeVar', [])
+        if private_config['c_compiler']:
+            cmd += ['CC=' + private_config['c_compiler']]
+        if private_config['c_compiler']:
+            cmd += ['CXX=' + private_config['cxx_compiler']]
+
+        cflags = ''
+        cxxflags = ''
+        if sys_root:
+            pathes = ['-I' + os.path.expanduser(os.path.join(p, 'include')) for p in sys_root]
+            inc_path = ' '.join(pathes)
+            cflags += ' ' + inc_path
+            cxxflags += ' ' + inc_path
+            pathes = ['-I' + os.path.expanduser(os.path.join(p, 'usr', 'include')) for p in sys_root]
+            inc_path = ' '.join(pathes)
+            cflags += ' ' + inc_path
+            cxxflags += ' ' + inc_path
+        if head_pathes:
+            pathes = ['-I' + os.path.expanduser(p) for p in head_pathes]
+            inc_path = ' '.join(pathes)
+            cflags += ' ' + inc_path
+            cxxflags += ' ' + inc_path
+        if macro_var:
+            macro = ''
+            macro_def = ['-D' + i + '=' + macro_var[i] if macro_var[i] else '-D' + i for i in macro_var]
+            macro = ' '.join(macro_def)
+            cflags += ' ' + macro
+            cxxflags += ' ' + macro 
+        if private_config['c_flags']:
+            cflags += ' ' + private_config['c_flags']
+        if private_config['cxx_flags']:
+            cxxflags += ' ' + private_config['cxx_flags']
+
+        if cflags:
+            cmd += ['CFLAGS=' + cflags]
+        if cxxflags:
+            cmd += ['CXXFLAGS=' + cxxflags]
+
+        ldflags = ''
+        if sys_root:
+            pathes = ['-L' + os.path.expanduser(os.path.join(p, 'lib')) for p in sys_root]
+            ldflags = ' ' + ' '.join(pathes) 
+            pathes = ['-L' + os.path.expanduser(os.path.join(p, 'usr', 'lib')) for p in sys_root]
+            ldflags = ' ' + ' '.join(pathes) 
+        if lib_pathes:
+            pathes = ['-L' + os.path.expanduser(p) for p in lib_pathes]
+            ldflags = ' ' + ' '.join(pathes)
+        if private_config['ld_flags']:
+            ldflags += ' ' + private_config['ld_flags']
+        if ldflags:
+            cmd += ['LDFLAGS=' + ldflags]
+
         variables = ''
         if make_var:
-            variables = ' '.join(make_var)
-
+            v = [i + '=' + make_var[i] for i in make_var]
+            variables = ' '.join(v)
         if variables:
-            cmd += [' ' + variables]
-        if stage_root:
-            cmd += [' DESTDIR=' + stage_root]
+            cmd += [variables]
+    print(cmd)
+    return private_config['env_var']
 
 def figure_out_build_order(G, package, build_list):
     idx = build_list.index(package)
@@ -683,6 +725,14 @@ def generate_build_order(G, package, build_list):
 
 def should_install(config, arch, package):
     return config['PACKAGES'][arch][package].get('Install', True)
+
+def setup_package_env(env_list):
+    for env in env_list:
+        os.putenv(env, env_list[env])
+
+def clear_package_env(env_list):
+    for env in env_list:
+        os.unsetenv(env)
 
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
@@ -720,8 +770,10 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
 
                     if clean == 'uninstall_clean' and should_install(config, arch, pkg):
                         cmd = []
-                        create_build_command(pkg, arch, variant, debug, verbose, 'uninstall', nr_jobs, generator, type, config, cmd)
+                        env = create_build_command(pkg, arch, variant, debug, verbose, 'uninstall',
+                                                   nr_jobs, generator, type, config, cmd)
                         if cmd:
+                            setup_package_env(env)
                             build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
@@ -730,13 +782,16 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                 log_fd.write(line)
                                 if build_stop:
                                     break
+                            clear_package_env(env)
                             if build_stop:
                                 break
 
                     if clean == 'uninstall_clean' or clean == 'clean_only':
                         cmd = []
-                        create_build_command(pkg, arch, variant, debug, verbose, 'clean', nr_jobs, generator, type, config, cmd)
+                        env = create_build_command(pkg, arch, variant, debug, verbose, 'clean',
+                                             nr_jobs, generator, type, config, cmd)
                         if cmd:
+                            setup_package_env(env)
                             build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
@@ -745,6 +800,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                 log_fd.write(line)
                                 if build_stop:
                                     break
+                            clear_package_env(env)
 
                 except:
                     pass
@@ -804,6 +860,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     print('==== Note: package %s is cleared because work path of %s overlap with it.'%(package_cleared, pkg))
                     do_build_packages([package_cleared], arch, variant, debug, verbose, 'clean_only', True, nr_jobs, generator, config, output)
                 except Exception as e:
+                    print(e)
                     pass
             else:
                 package_built[work_path] = pkg
@@ -817,8 +874,9 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
 
             os.chdir(work_path)
             cmd = []
-            create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, type, config, cmd)
+            env = create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, type, config, cmd)
             if cmd:
+                setup_package_env(env)
                 build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
@@ -827,6 +885,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     log_fd.write(line)
                     if build_stop:
                         break
+                clear_package_env(env)
                 if build_stop:
                     break
                 build_cmd_pipe.wait()
@@ -838,8 +897,9 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
             make_type = 'make'
             if should_install(config, arch, pkg):
                 make_type = 'make_install'
-            create_build_command(pkg, arch, variant, debug, verbose, make_type, nr_jobs, generator, type, config, cmd)
+            env = create_build_command(pkg, arch, variant, debug, verbose, make_type, nr_jobs, generator, type, config, cmd)
             if cmd:
+                setup_package_env(env)
                 build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
@@ -848,13 +908,15 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     log_fd.write(line)
                     if build_stop:
                         break
+                clear_package_env(env)
                 if build_stop:
                     break
                 build_cmd_pipe.wait()
                 if build_cmd_pipe.returncode:
                     ret = 'make fail for %s!. ret code: %d.'%(pkg, build_cmd_pipe.returncode)
                     break
-    except:
+    except BaseException as e:
+        print(e)
         if not build_stop:
             ret = 'Fail running command!'
     if log_fd:
@@ -904,7 +966,6 @@ def get_install_list(arch, package, config, variant):
         file_list = [i for i in files.split('\n') if i]
         file_list.sort()
         return {'info' : 'ok', 'files' : file_list}
-
 
 def launch_dlt(config):
     dlt_viewer_path = config['proj_root'] + '/tools/dlt-viewer'

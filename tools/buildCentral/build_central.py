@@ -187,7 +187,7 @@ if args.installed_list:
     exit(0)
 
 def do_print(line):
-    print line,
+    print(line)
 
 not_build = False
 if args.clean and not args.clean_build:

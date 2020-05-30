@@ -7,21 +7,31 @@
         "CXX_FLAGS"         : "-pipe -march=armv7-a -marm -mthumb-interwork -mfloat-abi=hard -mfpu=neon -mtune=cortex-a15 -Werror -Wall -std=c++11 -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
-        "MACRO_DEF"         : ["__LINUX__"],
-        "SHA_LD_FLAGS"      : "-Wl,--hash-style=gnu",
-        "EXE_LD_FLAGS"      : "-Wl,--hash-style=gnu"
+        "MACRO_DEF"         : {"__LINUX__" : null},
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "-Wl,--hash-style=gnu",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : ""
     },
     "arm-qnx" : {
         "COMPILER_TYPE"     : "GNU",
         "TARGET_ARCH"       : "arm",
         "TARGET_OS"         : "QNX",
-        "C_FLAGS"           : "-pipe -march=armv7-a -marm -mthumb-interwork -mfpu=neon -Werror -Wall",
-        "CXX_FLAGS"         : "-pipe -march=armv7-a -marm -mthumb-interwork -mfpu=neon -Werror -Wall -std=gnu++0x -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
+        "C_FLAGS"           : "",
+        "CXX_FLAGS"         : "",
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
-        "MACRO_DEF"         : ["__QNX__"],
-        "SHA_LD_FLAGS"      : "-Wl,--hash-style=gnu",
-        "EXE_LD_FLAGS"      : "-Wl,--hash-style=gnu"
+        "MACRO_DEF"         : {"__QNX__" : null},
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "-Wl,--hash-style=gnu",
+        "ENV_VAR"           : [],
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : "",
+        "STAGE_DIR"         : "",
+        "SYSROOT" :         [],
+        "ENV_VAR" :         {}
     },
     "rh850" : {
         "COMPILER_TYPE"     : "GreenHills",
@@ -33,15 +43,18 @@
         "ASM_FLAGS"         : "-preprocess_assembly_files -c -MD -list -passsource -cpu=rh850g3m",
         "REL_FLAGS"         : "-Ospeed",
         "DBG_FLAGS"         : "-G",
-        "MACRO_DEF"         : ["__RH850__"],
+        "MACRO_DEF"         : {"__RH850__" : null},
         "SHA_LD_FLAGS"      : "",
-        "EXE_LD_FLAGS"      : "-map -Mn -Mx -notda -delete -cpu=rh850g3m"
+        "EXE_LD_FLAGS"      : "-map -Mn -Mx -notda -delete -cpu=rh850g3m",
+        "LD_FLAGS"          : "",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : ""
     },
     "windows" : {
         "COMPILER_TYPE"     : "VC",
         "TARGET_ARCH"       : "x86",
         "TARGET_OS"         : "WIN",
-        "MACRO_DEF"         : ["__WIN32__"]
+        "MACRO_DEF"         : {"__WIN32__" : null}
     },
     "cygwin" : {
         "COMPILER_TYPE"     : "GNU",
@@ -49,9 +62,11 @@
         "TARGET_OS"         : "CYGWIN_OS",
         "C_FLAGS"           : "-pipe -Werror -Wall",
         "CXX_FLAGS"         : "-pipe -Werror -Wall -std=c++11 -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
-        "MACRO_DEF"         : ["__UNIX__"],
+        "MACRO_DEF"         : {"__UNIX__" : null},
         "REL_FLAGS"         : "-O3",
-        "DBG_FLAGS"         : "-g -O0"
+        "DBG_FLAGS"         : "-g -O0",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : ""
     },
     "linux" : {
         "COMPILER_TYPE"     : "GNU",
@@ -59,10 +74,14 @@
         "TARGET_OS"         : "LINUX",
         "C_FLAGS"           : "-pipe -Werror -Wall",
         "CXX_FLAGS"         : "-pipe -Werror -Wall -std=c++11 -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
-        "MACRO_DEF"         : ["__LINUX__"],
+        "MACRO_DEF"         : {"__LINUX__" : null},
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
-        "SHA_LD_FLAGS"      : "-Wl,--hash-style=gnu",
-        "EXE_LD_FLAGS"      : "-Wl,--hash-style=gnu"
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "-Wl,--hash-style=gnu",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : "",
+        "ENV_VAR" :         {}
     }
 }
