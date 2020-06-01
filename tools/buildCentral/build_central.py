@@ -42,7 +42,7 @@ parser.add_argument('packages', help='packages to be built; separated by ","', n
 
 def show_info():
     print('================================================================')
-    print('            Build Central version 0.9')
+    print('            Build Central version 1.0.1')
     print('Supported target architectures: ' + str([str(arch) for arch in build_config['TARGET_LIST']]))
     print('Supported variants: '  + str([str(var) for var in build_config['VARIANT_LIST']]))
     print('Building architecture: ' + target_arch)
@@ -106,7 +106,7 @@ packages = build_config['BUILD'][target_arch][model]['GRAPH']
 # -l without -a
 if args.list and not args.dep:
     show_info()
-    show_generator()
+    # show_generator()
     print('=========================Packages===============================')
     for pkg in sort_package_list(packages):
         print(pkg)
@@ -187,7 +187,7 @@ if args.installed_list:
     exit(0)
 
 def do_print(line):
-    print(line)
+    print(line),
 
 not_build = False
 if args.clean and not args.clean_build:
@@ -224,10 +224,10 @@ for pkg in build_list:
         cur_symbol = ' '
 
 if ret['info'] == 'ok':
-    print('\n==== Success! ====')
+    print('==== Success! ====')
 else:
-    print('\n==== Error! ====')
-    print(ret['info'])
+    print('==== Failure! ====')
+    print('\n' + ret['info'])
 
 print('\nLog file: ' + os.path.join(build_config['LOG_DIR'], target_arch, 'log'))
 

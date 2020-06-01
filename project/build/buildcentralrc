@@ -1,0 +1,60 @@
+{
+    "arm-qnx" : {
+        "TOOLCHAIN_CC"      : "$PROOT/../../qnx-sdp/host/linux/x86_64/usr/bin/qcc",
+        "TOOLCHAIN_CXX"     : "$PROOT/../../qnx-sdp/host/linux/x86_64/usr/bin/q++",
+        "COMPILER_TYPE"     : "GNU",
+        "TARGET_ARCH"       : "arm",
+        "TARGET_OS"         : "QNX",
+        "C_FLAGS"           : "-Vgcc_ntoaarch64 -O2 -Wc,-Wall -g -Os -Wall -march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong -EL",
+        "CXX_FLAGS"         : "-Vgcc_ntoaarch64 -O2 -Wc,-Wall -g -Os -Wall -march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong -EL -DGOOGLE_PROTOBUF_ARCH_64_BIT",
+        "REL_FLAGS"         : "-O3",
+        "DBG_FLAGS"         : "-g -O0",
+        "MACRO_DEF"         : {"__QNX__" : null},
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "",
+        "ENV_VAR"           : [],
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : "",
+        "STAGE_DIR"         : "",
+        "SYSROOT"           : [],
+        "ENV_VAR"           : {
+        "QNX_HOST"          : "$PROOT/../../qnx-sdp/host/linux/x86_64",
+        "QNX_TARGET"        : "$PROOT/../../qnx-sdp/target/qnx7"
+        }
+    },
+    "windows" : {
+        "COMPILER_TYPE"     : "VC",
+        "TARGET_ARCH"       : "x86",
+        "TARGET_OS"         : "WIN",
+        "MACRO_DEF"         : {"__WIN32__" : null}
+    },
+    "cygwin" : {
+        "COMPILER_TYPE"     : "GNU",
+        "TARGET_ARCH"       : "x86",
+        "TARGET_OS"         : "CYGWIN_OS",
+        "C_FLAGS"           : "-pipe -Werror -Wall",
+        "CXX_FLAGS"         : "-pipe -Werror -Wall -std=c++11 -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
+        "MACRO_DEF"         : {"__UNIX__" : null},
+        "REL_FLAGS"         : "-O3",
+        "DBG_FLAGS"         : "-g -O0",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : ""
+    },
+    "linux" : {
+        "COMPILER_TYPE"     : "GNU",
+        "TARGET_ARCH"       : "x86",
+        "TARGET_OS"         : "LINUX",
+        "C_FLAGS"           : "-pipe -Werror -Wall",
+        "CXX_FLAGS"         : "-pipe -Werror -Wall -std=c++11 -frtti -fexceptions -fcheck-new -fno-strict-aliasing -fno-default-inline",
+        "MACRO_DEF"         : {"__LINUX__" : null},
+        "REL_FLAGS"         : "-O3",
+        "DBG_FLAGS"         : "-g -O0",
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "-Wl,--hash-style=gnu",
+        "OTHER_INC_PATH"    : "",
+        "OTHER_LIB_PATH"    : "",
+        "ENV_VAR" :         {}
+    }
+}

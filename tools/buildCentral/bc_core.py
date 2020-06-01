@@ -555,8 +555,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             if arch != config['HOST']:
                 toolchain_file = private_config['toolchain_file']
                 if not toolchain_file:
-                    toolchain_file = 'toolchain.cmake'
-                toolchain_file = os.path.join(rule_dir, toolchain_file)
+                    toolchain_file = os.path.join(rule_dir, 'toolchain.cmake')
                 add_definition(cmd, 'CMAKE_TOOLCHAIN_FILE', toolchain_file)
             if debug:
                 add_definition(cmd, 'CMAKE_BUILD_TYPE', 'Debug')
@@ -627,11 +626,6 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         elif stage == 'uninstall':
             cmd += make_tool + ['uninstall']
     elif type == 'make':
-        setup_package_build_env(private_config, 'CC', 'c_compiler')
-        setup_package_build_env(private_config, 'CXX', 'cxx_compiler')
-        setup_package_build_env(private_config, 'CFLAGS', 'c_flags')
-        setup_package_build_env(private_config, 'CXXFLAGS', 'cxx_flags')
-
         # if exists 'Makefile' or 'GNUMakefile', make it;
         if stage == 'clean':
             cmd += make_tool + ['clean']
