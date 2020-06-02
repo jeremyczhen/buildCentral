@@ -19,15 +19,20 @@
  */
 """
 
-from Tkinter import *
 import json
 import os
-from tkMessageBox import *
-from ttk import *
 import bc_core as bcc
 import argparse
 import networkx as nx
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
+try:
+    from Tkinter import *
+    from tkMessageBox import *
+    from ttk import *
+except ImportError:
+    from tkinter import *
+    from tkinter.messagebox import *
+    from tkinter.ttk import *
 
 root = Tk()
 root.resizable(0,0)
@@ -41,6 +46,7 @@ window_width =840
 window_height = 610
 message_window_height = 8
 
+"""
 def draw_packages(config, arch, variant):
     graphs = config['BUILD'][arch][variant]['GRAPH']
     nx.draw_networkx(graphs,
@@ -52,6 +58,7 @@ def draw_packages(config, arch, variant):
     #plt.savefig(picture_name)
     #return picture_name
     plt.show()
+"""
 
 def build_packages(packages, config, output, clean = False, not_build = False):
     global tk_build_button 
@@ -151,7 +158,7 @@ class globalConfig:
     @classmethod
     def load_config(cls):
         cls.build_config = bcc.load_build_config(None, None)
-        cls.archs = cls.build_config['TARGET_LIST'].keys()
+        cls.archs = [i for i in cls.build_config['TARGET_LIST'].keys()]
 
         if cls.build_config['ret'] != 'ok':
             showerror('Config Error!', cls.build_config['ret'])

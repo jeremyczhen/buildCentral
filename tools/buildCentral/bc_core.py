@@ -200,7 +200,7 @@ def do_import_private_config(config, cfg_file):
     template = Template(fd.read())
     fd.close()
     try:
-        private_cfg = json.loads(template.substitute(PROOT = config['proj_root']))
+        private_cfg = json.loads(template.substitute(PROOT = config['proj_root'].replace('\\', '/')))
     except ValueError as e:
         return {'ret' : 'error', 'info' : '%s: Config file %s is not in json format!'%(str(e), cfg_file)}
 
