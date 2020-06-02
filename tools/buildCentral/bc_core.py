@@ -608,7 +608,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
 
             add_definition(cmd, 'PROJECT_ROOT', config['proj_root'])
 
-            definitions = config.get('additional_cmake_definition')
+            definitions = config.get('extra_make_var')
             if definitions:
                 for item in definitions:
                     cmd += ['-D' + item]
@@ -691,12 +691,15 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         if ldflags:
             cmd += ['LDFLAGS=' + ldflags]
 
-        variables = ''
+        variables = []
         if make_var:
-            v = [i + '=' + make_var[i] for i in make_var]
-            variables = ' '.join(v)
+            variables = [i + '=' + make_var[i] for i in make_var]
+        extra_var = config.get('extra_make_var')
+        if extra_var:
+            variables += extra_var
         if variables:
-            cmd += [variables]
+            cmd += [' '.join(variables)]
+
     print(cmd)
     return private_config['env_var']
 

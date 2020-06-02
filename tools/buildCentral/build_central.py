@@ -37,7 +37,7 @@ parser.add_argument('-m', '--build_model', help='specify a model to build. Use -
 parser.add_argument('-a', '--dep', help='build with dependency', action='store_true')
 parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, default=8)
 parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -l for details', default=None)
-parser.add_argument('-D', '--cmake_definition', help='specify cmake definitions separated by ","', default=None)
+parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
 parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
 
 def show_info():
@@ -66,8 +66,8 @@ if build_config['ret'] != 'ok':
     print(build_config['ret'])
     exit(-1)
 
-if args.cmake_definition:
-    build_config['additional_cmake_definition'] = args.cmake_definition.split(',')
+if args.extra_make_var:
+    build_config['extra_make_var'] = args.extra_make_var.split(',')
 
 target_arch = args.target_arch
 if not target_arch:
