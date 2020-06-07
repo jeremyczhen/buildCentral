@@ -205,19 +205,14 @@ def do_import_private_config(config, cfg_file):
         return {'ret' : 'error', 'info' : '%s: Config file %s is not in json format!'%(str(e), cfg_file)}
 
     for arch in private_cfg:
-        if arch in config['TARGET_LIST'] or arch == config['os_type']:
-            if arch == config['os_type']:
-                cfg_arch = config['HOST']
-            else:
-                cfg_arch = arch
-
-            ret = import_configs(config['private'][cfg_arch], private_cfg[arch])
+        if arch in config['TARGET_LIST']:
+            ret = import_configs(config['private'][arch], private_cfg[arch])
             if ret['ret'] != 'ok':
                 return ret
 
-            if not config['private'][cfg_arch]['target_arch']:
+            if not config['private'][arch]['target_arch']:
                 return {'ret' : 'error', 'info' : 'TARGET_ARCH is not defined for %s!'%(arch)}
-            if not config['private'][cfg_arch]['target_os']:
+            if not config['private'][arch]['target_os']:
                 return {'ret' : 'error', 'info' : 'TARGET_OS is not defined for %s!'%(arch)}
 
     return {'ret' : 'ok', 'info' : None}
@@ -244,6 +239,12 @@ def import_private_config(config):
 
     return {'ret' : 'ok', 'info' : None}
 
+def arch_is_host(arch, config):
+    if arch ==  config['os_type']:
+        return True
+    else:
+        return False
+
 def config_package_path(config, arch, pkg, variant):
     src_path = os.path.abspath(os.path.join(config['proj_root'], config['PACKAGES'][arch][pkg]['Path']))
     output_dir = config.get('OUTPUT_DIR', src_path)
@@ -259,9 +260,9 @@ def config_package_path(config, arch, pkg, variant):
     if config['private'][arch]['stage_dir']:
         config['PACKAGES'][arch][pkg]['StageDir'] = config['private'][arch]['stage_dir']
     else:
-        if arch == config['HOST']:
+        if arch_is_host(arch, config):
             # no variant for host build
-            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', arch)
+            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', config['HOST'])
         else:
             config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', variant, arch)
 
@@ -473,11 +474,15 @@ def setup_global_build_env(arch, config):
             env = pathes
         os.putenv('LD_LIBRARY_PATH', env)
 
+def unset_environment(env):
+    if env in os.environ:
+        del os.environ[env]
+
 def setup_package_build_env(private_config, env, item):
     if private_config[item]:
         os.putenv(env, private_config[item])
     else:
-        os.unsetenv(env)
+        unset_environment(env)
 
 def get_generator_id(generator, arch, config):
     if not generator:
@@ -487,7 +492,7 @@ def get_generator_id(generator, arch, config):
     if not generator:
         generator = 'eunix'
         if config['os_type'] == 'windows':
-            if arch == config['HOST'] or arch == 'rh850':
+            if arch_is_host(arch, config) or arch == 'rh850':
                 generator = 'nmake'
     return generator
 
@@ -495,18 +500,18 @@ def check_generator(generator, arch, config):
     return cmake_generator[get_generator_id(generator, arch, config)]
 
 def get_build_cmd_type(package, arch, config):
-    type = 'unknown'
+    cmd_type = 'unknown'
     package_base = config['PACKAGES'][arch][package]['Path']
     f = os.path.join(package_base, 'build_package')
     if os.access(f, os.X_OK):
-        type = 'cmd'
+        cmd_type = 'cmd'
     elif os.path.exists(os.path.join(package_base, 'CMakeLists.txt')): 
-        type = 'cmake'
+        cmd_type = 'cmake'
     elif os.path.exists(os.path.join(package_base, 'Makefile')) or os.path.exists(os.path.join(package_base, 'GNUMakefile')): 
-        type = 'make'
-    return type
+        cmd_type = 'make'
+    return cmd_type
 
-def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs, generator, type, config, cmd):
+def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs, generator, cmd_type, config, cmd):
     private_config = copy.deepcopy(config['private'][arch])
     import_configs(private_config, config['PACKAGES'][arch][package])
     if 'PACKAGES-PER-ARCH' in config and arch in config['PACKAGES-PER-ARCH'] and package in config['PACKAGES-PER-ARCH'][arch]:
@@ -530,7 +535,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         make_tool_with_job = ['make', '-j', str(nr_jobs)]
 
     package_base = config['PACKAGES'][arch][package]['Path']
-    if type == 'cmd':
+    if cmd_type == 'cmd':
         # if exists 'build_package' file, run it;
         f = os.path.join(package_base, 'build_package')
         if stage == 'clean':
@@ -541,7 +546,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             cmd += [f, '-i', config['VARIANT_LIST'][variant]['MACRO']]
         elif stage == 'uninstall':
             cmd += [f, '-u', config['VARIANT_LIST'][variant]['MACRO']]
-    elif type == 'cmake':
+    elif cmd_type == 'cmake':
         # if exists 'CMakeLists.txt', cmake it;
         setup_package_build_env(private_config, 'C_COMPILER', 'c_compiler')
         setup_package_build_env(private_config, 'CXX_COMPILER', 'cxx_compiler')
@@ -552,7 +557,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             add_definition(cmd, 'PROJECT_ROOT', config['proj_root'])
             rule_dir = os.path.join(config['proj_root'], 'tools', 'buildCentral', 'rules')
             add_definition(cmd, 'RULE_DIR', rule_dir)
-            if arch != config['HOST']:
+            if not arch_is_host(arch, config):
                 toolchain_file = private_config['toolchain_file']
                 if not toolchain_file:
                     toolchain_file = os.path.join(rule_dir, 'toolchain.cmake')
@@ -625,7 +630,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
                 cmd += make_tool_with_job + ['install']
         elif stage == 'uninstall':
             cmd += make_tool + ['uninstall']
-    elif type == 'make':
+    elif cmd_type == 'make':
         # if exists 'Makefile' or 'GNUMakefile', make it;
         if stage == 'clean':
             cmd += make_tool + ['clean']
@@ -729,7 +734,7 @@ def setup_package_env(env_list):
 
 def clear_package_env(env_list):
     for env in env_list:
-        os.unsetenv(env)
+        unset_environment(env)
 
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
@@ -744,7 +749,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
             os.makedirs(log_base)
         except:
             return {'info' : 'Unable to create log dir %s'%(log_base), 'package' : None}
-    log_fd = open(os.path.join(log_base, 'log'), 'w')
+    log_fd = open(os.path.join(log_base, 'log'), 'wb')
     if build_all_target in packages:
         del(packages[packages.index(build_all_target)])
 
@@ -756,8 +761,8 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
         for pkg in packages:
             config_package_path(config, arch, pkg, variant)
             cur_package = pkg
-            type = get_build_cmd_type(pkg, arch, config)
-            if type == 'cmake':
+            cmd_type = get_build_cmd_type(pkg, arch, config)
+            if cmd_type == 'cmake':
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
             else:
                 work_path = config['PACKAGES'][arch][pkg]['Path']
@@ -768,7 +773,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     if clean == 'uninstall_clean' and should_install(config, arch, pkg):
                         cmd = []
                         env = create_build_command(pkg, arch, variant, debug, verbose, 'uninstall',
-                                                   nr_jobs, generator, type, config, cmd)
+                                                   nr_jobs, generator, cmd_type, config, cmd)
                         if cmd:
                             setup_package_env(env)
                             build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -786,7 +791,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     if clean == 'uninstall_clean' or clean == 'clean_only':
                         cmd = []
                         env = create_build_command(pkg, arch, variant, debug, verbose, 'clean',
-                                             nr_jobs, generator, type, config, cmd)
+                                             nr_jobs, generator, cmd_type, config, cmd)
                         if cmd:
                             setup_package_env(env)
                             build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -802,7 +807,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 except:
                     pass
                 try:
-                    if type == 'cmake':
+                    if cmd_type == 'cmake':
                         print('Removing working directory: ' + work_path)
                         shutil.rmtree(work_path, ignore_errors=True)
                 except:
@@ -842,10 +847,10 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 os.chdir(current_dir)
                 return {'info' : 'Package %s: base directory %s does not exist!'%(cur_package, package_base), 'package' : cur_package}
 
-            type = get_build_cmd_type(pkg, arch, config)
-            if type == 'cmake':
+            cmd_type = get_build_cmd_type(pkg, arch, config)
+            if cmd_type == 'cmake':
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
-            elif type == 'unknown':
+            elif cmd_type == 'unknown':
                 ret = 'Fail to create build command for package %s! Possibly there is no CMakeList, Makefile or GNUMakefile for the package.'%(pkg)
                 break
             else:
@@ -871,7 +876,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
 
             os.chdir(work_path)
             cmd = []
-            env = create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, type, config, cmd)
+            env = create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, cmd_type, config, cmd)
             if cmd:
                 setup_package_env(env)
                 build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -894,7 +899,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
             make_type = 'make'
             if should_install(config, arch, pkg):
                 make_type = 'make_install'
-            env = create_build_command(pkg, arch, variant, debug, verbose, make_type, nr_jobs, generator, type, config, cmd)
+            env = create_build_command(pkg, arch, variant, debug, verbose, make_type, nr_jobs, generator, cmd_type, config, cmd)
             if cmd:
                 setup_package_env(env)
                 build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)

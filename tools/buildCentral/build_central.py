@@ -72,6 +72,8 @@ if args.extra_make_var:
 target_arch = args.target_arch
 if not target_arch:
     target_arch = build_config['DEFAULT_TARGET']
+if target_arch == build_config['HOST']:
+    target_arch = build_config['os_type']
 if not target_arch in build_config['TARGET_LIST']:
     print('Error: invalid target arch: %s'%(args.target_arch))
     exit(-1)
