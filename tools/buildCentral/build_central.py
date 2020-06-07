@@ -30,7 +30,6 @@ parser.add_argument('-d', '--debug', help='build debug version', action='store_t
 parser.add_argument('-c', '--clean', help='clean', action='store_true')
 parser.add_argument('-b', '--clean_build', help='always go along with -c: -cb means clean followed by build', action='store_true')
 parser.add_argument('-l', '--list', help='list all packages', action='store_true')
-parser.add_argument('-i', '--installed_list', help='show installed files', action='store_true')
 parser.add_argument('-e', '--exclusive', help='packages not specified for build', action='store_true')
 parser.add_argument('-t', '--target_arch', help='specify target arch. Use -l for details', default=None)
 parser.add_argument('-m', '--build_model', help='specify a model to build. Use -l for details', default=None)
@@ -39,6 +38,7 @@ parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, de
 parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -l for details', default=None)
 parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
 parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
+parser.add_argument('-i', '--info', help='show information', action='store_true')
 
 def show_info():
     print('================================================================')
@@ -105,10 +105,10 @@ if not model in build_config['VARIANT'][target_arch]:
     exit(-1)
 
 packages = build_config['BUILD'][target_arch][model]['GRAPH']
+
 # -l without -a
 if args.list and not args.dep:
     show_info()
-    # show_generator()
     print('=========================Packages===============================')
     for pkg in sort_package_list(packages):
         print(pkg)
@@ -172,7 +172,10 @@ if args.dep:
 else:
     build_list = [pkg for pkg in dep_list if pkg in package_list]
 
-if args.installed_list:
+if args.info:
+    show_info()
+    show_generator()
+
     retry_list = []
     for pkg in build_list:
         installed = bcc.get_install_list(target_arch, pkg, build_config, model)

@@ -57,14 +57,15 @@ endif()
 
 if (DEFINED INC_PATH)
     foreach(dir ${INC_PATH})
-        include_directories(${dir})
+        file(TO_CMAKE_PATH ${dir} dir)
+        include_directories(${dir}/.)
     endforeach()
 endif()
 
 if (DEFINED LIB_PATH)
     foreach(dir ${LIB_PATH})
-        file(TO_CMAKE_PATH ${dir}/. dir)
-        link_directories(${dir})
+        file(TO_CMAKE_PATH ${dir} dir)
+        link_directories(${dir}/.)
     endforeach()
 endif()
 

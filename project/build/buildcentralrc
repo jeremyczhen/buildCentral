@@ -14,8 +14,8 @@
         "EXE_LD_FLAGS"      : "",
         "LD_FLAGS"          : "",
         "ENV_VAR"           : [],
-        "OTHER_INC_PATH"    : "",
-        "OTHER_LIB_PATH"    : "",
+        "OTHER_INC_PATH"    : [],
+        "OTHER_LIB_PATH"    : [],
         "STAGE_DIR"         : "",
         "SYSROOT"           : [],
         "ENV_VAR"           : {
@@ -29,6 +29,25 @@
         "TARGET_OS"         : "WIN",
         "MACRO_DEF"         : {"__WIN32__" : null}
     },
+    "win-lin" : {
+        "TOOLCHAIN_CC"      : "D:/ProgramFile/Linaro/gcc-linaro-arm-linux-gnueabihf-4.9-2014.07/bin/arm-linux-gnueabihf-gcc.exe",
+        "TOOLCHAIN_CXX"     : "D:/ProgramFile/Linaro/gcc-linaro-arm-linux-gnueabihf-4.9-2014.07/bin/arm-linux-gnueabihf-g++.exe",
+        "COMPILER_TYPE"     : "GNU",
+        "TARGET_ARCH"       : "arm",
+        "TARGET_OS"         : "QNX",
+        "REL_FLAGS"         : "-O3",
+        "DBG_FLAGS"         : "-g -O0",
+        "MACRO_DEF"         : {"__LINUX__" : null},
+        "SHA_LD_FLAGS"      : "",
+        "EXE_LD_FLAGS"      : "",
+        "LD_FLAGS"          : "-LD:\\ProgramFile\\Linaro\\gcc-linaro-arm-linux-gnueabihf-4.9-2014.07\\arm-linux-gnueabihf\\lib -lstdc++",
+        "ENV_VAR"           : [],
+        "OTHER_INC_PATH"    : [],
+        "OTHER_LIB_PATH"    : [],
+        "STAGE_DIR"         : "",
+        "SYSROOT"           : [],
+        "ENV_VAR"           : {}
+    },
     "cygwin" : {
         "COMPILER_TYPE"     : "GNU",
         "TARGET_ARCH"       : "x86",
@@ -38,8 +57,8 @@
         "MACRO_DEF"         : {"__UNIX__" : null},
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
-        "OTHER_INC_PATH"    : "",
-        "OTHER_LIB_PATH"    : ""
+        "OTHER_INC_PATH"    : [],
+        "OTHER_LIB_PATH"    : []
     },
     "linux" : {
         "COMPILER_TYPE"     : "GNU",
@@ -53,8 +72,8 @@
         "SHA_LD_FLAGS"      : "",
         "EXE_LD_FLAGS"      : "",
         "LD_FLAGS"          : "-Wl,--hash-style=gnu",
-        "OTHER_INC_PATH"    : "",
-        "OTHER_LIB_PATH"    : "",
+        "OTHER_INC_PATH"    : [],
+        "OTHER_LIB_PATH"    : [],
         "ENV_VAR" :         {}
     }
 }

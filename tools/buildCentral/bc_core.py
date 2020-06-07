@@ -160,25 +160,25 @@ def import_configs(dst, src):
         elif item == 'MAKE_VAR':
             dst['make_var'].update(src_value)
         elif item == 'C_FLAGS':
-            dst['c_flags'] += ' ' + src_value
+            dst['c_flags'] += src_value + ' '
         elif item == 'CXX_FLAGS':
-            dst['cxx_flags'] += ' ' + src_value
+            dst['cxx_flags'] += src_value + ' '
         elif item == 'ASM_FLAGS':
-            dst['asm_flags'] += ' ' + src_value
+            dst['asm_flags'] += src_value + ' '
         elif item == 'REL_FLAGS':
-            dst['release_flags'] += ' ' + src_value
+            dst['release_flags'] += src_value + ' '
         elif item == 'DBG_FLAGS':
-            dst['debug_flags'] += ' ' + src_value
+            dst['debug_flags'] += src_value + ' '
         elif item == 'SHA_LD_FLAGS':
-            dst['shared_ld_flags'] += ' ' + src_value
+            dst['shared_ld_flags'] += src_value + ' '
         elif item == 'EXE_LD_FLAGS':
-            dst['exe_ld_flags'] += ' ' + src_value
+            dst['exe_ld_flags'] += src_value + ' '
         elif item == 'OTHER_LIB_PATH':
             dst['lib_search_path'] += [os.path.expanduser(x) for x in src_value]
         elif item == 'OTHER_INC_PATH':
             dst['head_search_path'] += [os.path.expanduser(x) for x in src_value]
         elif item == 'LD_FLAGS':
-            dst['ld_flags'] += ' ' + src_value
+            dst['ld_flags'] += src_value + ' '
         elif item == 'ENV_VAR':
             dst['env_var'].update(src_value)
 
@@ -594,10 +594,12 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             if private_config['cxx_flags']:        add_definition(cmd, 'CMAKE_CXX_FLAGS',  private_config['cxx_flags'])
             if private_config['release_flags']:    add_definition(cmd, 'REL_FLAGS',        private_config['release_flags'])
             if private_config['debug_flags']:      add_definition(cmd, 'DBG_FLAGS',        private_config['debug_flags'])
-            if private_config['shared_ld_flags']:  add_definition(cmd, 'CMAKE_SHARED_LINKER_FLAGS',
-                                                                  private_config['ld_flags'] + ' ' + private_config['shared_ld_flags'])
-            if private_config['exe_ld_flags']:     add_definition(cmd, 'CMAKE_EXE_LINKER_FLAGS',
-                                                                  private_config['ld_flags'] + ' ' + private_config['exe_ld_flags'])
+            ld_flags = private_config['ld_flags']
+            if  private_config['shared_ld_flags']: ld_flags += ' ' + private_config['shared_ld_flags']
+            if ld_flags: add_definition(cmd, 'CMAKE_SHARED_LINKER_FLAGS', ld_flags)
+            ld_flags =  private_config['ld_flags']
+            if private_config['exe_ld_flags']: ld_flags += ' ' + private_config['exe_ld_flags']
+            if ld_flags: add_definition(cmd, 'CMAKE_EXE_LINKER_FLAGS', ld_flags)
             if lib_pathes:                         add_definition(cmd, 'LIB_PATH',        ';'.join(lib_pathes))
             if head_pathes:                        add_definition(cmd, 'INC_PATH',        ';'.join(head_pathes))
 
