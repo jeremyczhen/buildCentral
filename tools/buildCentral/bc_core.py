@@ -25,6 +25,7 @@ import shutil
 import tarfile
 import copy
 import platform
+import multiprocessing
 
 build_all_target = '__all__' 
 build_cmd_pipe = None
@@ -274,12 +275,16 @@ def load_build_config(cfg_dir, proj_root):
 
     config['platform_info'] = platform.uname()
     os_name = config['platform_info'][0]
+    host_arch = None
     if 'Windows' in os_name:
-        config['os_type'] = 'windows'
+        host_arch = 'windows'
     elif 'Linux' in os_name:
-        config['os_type'] = 'linux'
+        host_arch = 'linux'
     elif 'CYGWIN' in os_name:
-        config['os_type'] = 'cygwin'
+        host_arch = 'cygwin'
+
+    if host_arch:
+        config['os_type'] = host_arch
     else:
         config['ret'] = 'Unknown OS: %s'%(os_name)
         return config
@@ -376,10 +381,13 @@ def load_build_config(cfg_dir, proj_root):
                         config['PACKAGES'][arch][pkg]['Path'] = path
                     dep = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
                     if dep:
-                        config['PACKAGES'][arch][pkg]['Dependency'] = dep 
+                        config['PACKAGES'][arch][pkg]['Dependency'] = list(set(dep))
                     install = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Install', None)
                     if install:
                         config['PACKAGES'][arch][pkg]['Install'] = install 
+                    tools = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Tools', None)
+                    if tools:
+                        config['PACKAGES'][arch][pkg]['Tools'] = tools
 
         config['BUILD'] = {}
         config['VARIANT'] = {}
@@ -407,6 +415,13 @@ def load_build_config(cfg_dir, proj_root):
                         if not pkg in config['PACKAGES'][arch]:
                             config['ret'] = 'Arch: %s, variant %s: Package %s is not defined in PACKAGE in file %s!'%(arch, build, pkg, cfg_file)
                             return config
+
+                        if 'Tools' in config['PACKAGES'][arch][pkg]:
+                            config['PACKAGES'][arch][pkg]['Tools'] = set(config['PACKAGES'][arch][pkg]['Tools'])
+                            for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
+                                if not dep_pkg in config['PACKAGES'][host_arch]:
+                                    config['ret'] = 'Arch: %s, variant %s, Tool %s is not defined for host %s in file %s!'%(arch, build, dep_pkg, host_arch, cfg_file)
+                                    return config
 
                         if 'Dependency' in config['PACKAGES'][arch][pkg]:
                             for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
@@ -727,6 +742,13 @@ def generate_build_order(G, package, build_list):
         build_list.append(package)
         figure_out_build_order(G, package, build_list)
 
+def get_tools(config, packages):
+    tools = set()
+    for pkg in packages:
+        if pkg != build_all_target and 'Tools' in config['PACKAGES'][config['os_type']][pkg]:
+            tools = tools | (config['PACKAGES'][config['os_type']][pkg]['Tools'] - tools)
+    return tools
+
 def should_install(config, arch, package):
     return config['PACKAGES'][arch][package].get('Install', True)
 
@@ -741,6 +763,9 @@ def clear_package_env(env_list):
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
     global build_cmd_pipe
+
+    if not nr_jobs:
+        nr_jobs = multiprocessing.cpu_count()
     cur_package = '' 
     build_stop = 0
     current_dir = os.getcwd()
@@ -768,6 +793,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
             else:
                 work_path = config['PACKAGES'][arch][pkg]['Path']
+            env = []
             if os.path.exists(work_path):
                 try:
                     os.chdir(work_path)
@@ -786,7 +812,6 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                 log_fd.write(line)
                                 if build_stop:
                                     break
-                            clear_package_env(env)
                             if build_stop:
                                 break
 
@@ -804,7 +829,6 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                 log_fd.write(line)
                                 if build_stop:
                                     break
-                            clear_package_env(env)
 
                 except:
                     pass
@@ -817,6 +841,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
 
                 if build_stop:
                     break
+            clear_package_env(env)
 
     if not_build:
         os.chdir(current_dir)

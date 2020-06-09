@@ -34,7 +34,7 @@ parser.add_argument('-e', '--exclusive', help='packages not specified for build'
 parser.add_argument('-t', '--target_arch', help='specify target arch. Use -l for details', default=None)
 parser.add_argument('-m', '--build_model', help='specify a model to build. Use -l for details', default=None)
 parser.add_argument('-a', '--dep', help='build with dependency', action='store_true')
-parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, default=8)
+parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, default=0)
 parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -l for details', default=None)
 parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
 parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
@@ -70,10 +70,11 @@ if args.extra_make_var:
     build_config['extra_make_var'] = args.extra_make_var.split(',')
 
 target_arch = args.target_arch
+host_arch = build_config['os_type']
 if not target_arch:
     target_arch = build_config['DEFAULT_TARGET']
 if target_arch == build_config['HOST']:
-    target_arch = build_config['os_type']
+    target_arch = host_arch
 if not target_arch in build_config['TARGET_LIST']:
     print('Error: invalid target arch: %s'%(args.target_arch))
     exit(-1)
@@ -104,13 +105,14 @@ if not model in build_config['VARIANT'][target_arch]:
     print(build_config['VARIANT'][target_arch])
     exit(-1)
 
-packages = build_config['BUILD'][target_arch][model]['GRAPH']
+package_graph = build_config['BUILD'][target_arch][model]['GRAPH']
+tools_graph = build_config['BUILD'][host_arch][model]['GRAPH']
 
 # -l without -a
 if args.list and not args.dep:
     show_info()
     print('=========================Packages===============================')
-    for pkg in sort_package_list(packages):
+    for pkg in sort_package_list(package_graph):
         print(pkg)
     exit(0)
 
@@ -121,10 +123,10 @@ else:
     arg_package_list += bcc.guess_current_package(os.getcwd(), build_config, target_arch)
 
 for pkg in arg_package_list:
-    if not pkg in packages:
+    if not pkg in package_graph:
         if args.packages:
             print('==== Invalid package %s for %s! Please select packages from the following: ===='%(pkg, target_arch))
-            for pkg in sort_package_list(packages):
+            for pkg in sort_package_list(package_graph):
                 print(pkg)
             exit(-1)
         else:
@@ -137,7 +139,7 @@ if args.exclusive:
         if bcc.build_all_target in arg_package_list:
             print('Error! -e option should specify package %s!'%(bcc.build_all_target))
             exit(-1)
-        for pkg in packages:
+        for pkg in package_graph:
             if not pkg in arg_package_list and pkg != bcc.build_all_target:
                 package_list.append(pkg)
     else:
@@ -157,27 +159,43 @@ if args.list and args.dep:
     for pkg in package_list:
         print(pkg)
         dep_list = []
-        bcc.generate_build_order(packages, pkg, dep_list)
+        bcc.generate_build_order(package_graph, pkg, dep_list)
         dep_list.reverse()
+
+        tools = bcc.get_tools(build_config, dep_list)
+        tools_dep_list = []
+        for tool in tools:
+            bcc.generate_build_order(tools_graph, tool, tools_dep_list)
+        tools_dep_list.reverse()
+
+        for tool in tools_dep_list:
+            print('    ' + tool + '(host)')
         for pkg in dep_list:
             print('    ' + pkg)
     exit(0)
 
 dep_list = []
 for pkg in package_list:
-    bcc.generate_build_order(packages, pkg, dep_list)
+    bcc.generate_build_order(package_graph, pkg, dep_list)
 dep_list.reverse()
 if args.dep:
-    build_list = dep_list
+    package_build_list = dep_list
 else:
-    build_list = [pkg for pkg in dep_list if pkg in package_list]
+    package_build_list = [pkg for pkg in dep_list if pkg in package_list]
+
+tools_build_list = []
+if args.dep:
+    tools = bcc.get_tools(build_config, package_build_list)
+    for tool in tools:
+        bcc.generate_build_order(tools_graph, tool, tools_build_list)
+    tools_build_list.reverse()
 
 if args.info:
     show_info()
     show_generator()
 
     retry_list = []
-    for pkg in build_list:
+    for pkg in package_build_list:
         installed = bcc.get_install_list(target_arch, pkg, build_config, model)
         if installed['info'] == 'retry':
             retry_list.append(pkg)
@@ -201,17 +219,39 @@ if args.clean and not args.clean_build:
 clean_type = None
 if args.clean:
     clean_type = 'uninstall_clean'
-ret = bcc.do_build_packages(build_list,
-                           target_arch,
-                           model,
-                           args.debug,
-                           args.verbose,
-                           clean_type,
-                           not_build,
-                           args.jobs,
-                           args.cmake_generator,
-                           build_config,
-                           do_print)
+
+build_list = [pkg + '(host)' for pkg in tools_build_list] + package_build_list
+ret = None
+failure_package = ''
+if tools_build_list:
+    ret = bcc.do_build_packages(tools_build_list,
+                               host_arch,
+                               model,
+                               args.debug,
+                               args.verbose,
+                               clean_type,
+                               not_build,
+                               args.jobs,
+                               args.cmake_generator,
+                               build_config,
+                               do_print)
+    if ret['info'] != 'ok':
+        failure_package = ret['package'] + '(host)'
+
+if ret is None or ret['info'] == 'ok':
+    ret = bcc.do_build_packages(package_build_list,
+                               target_arch,
+                               model,
+                               args.debug,
+                               args.verbose,
+                               clean_type,
+                               not_build,
+                               args.jobs,
+                               args.cmake_generator,
+                               build_config,
+                               do_print)
+    if ret['info'] != 'ok':
+        failure_package = ret['package']
 
 print('')
 show_info()
@@ -222,7 +262,7 @@ for pkg in package_list:
 print('\n==== Build status: ====')
 cur_symbol = '>'
 for pkg in build_list:
-    if ret['package'] == pkg and ret['info'] != 'ok':
+    if ret['info'] != 'ok' and failure_package == pkg:
         cur_symbol = '?'
     print(cur_symbol + ' ' + pkg)
     if cur_symbol == '?':

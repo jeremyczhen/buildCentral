@@ -24,6 +24,7 @@ import os
 import bc_core as bcc
 import argparse
 import networkx as nx
+import multiprocessing
 #import matplotlib.pyplot as plt
 try:
     from Tkinter import *
@@ -60,27 +61,49 @@ def draw_packages(config, arch, variant):
     plt.show()
 """
 
-def build_packages(packages, config, output, clean = False, not_build = False):
+def build_packages(package_build_list, config, output, clean = False, not_build = False):
     global tk_build_button 
     arch = globalConfig.get_arch()
     debug = globalConfig.Debug.get()
     verbose = globalConfig.Verbose.get()
     variant = globalConfig.get_variant()
     nr_jobs = globalConfig.Jobs.get()
+
+    tools_graph = config['BUILD'][globalConfig.host_arch][variant]['GRAPH']
+    tools = bcc.get_tools(config, package_build_list)
+    tools_build_list = []
+    for tool in tools:
+        bcc.generate_build_order(tools_graph, tool, tools_build_list)
+    tools_build_list.reverse()
+
     clean_type = None
     if clean:
         clean_type = 'uninstall_clean'
-    ret = bcc.do_build_packages(packages,
-                                arch,
-                                variant,
-                                debug,
-                                verbose,
-                                clean_type,
-                                not_build,
-                                nr_jobs,
-                                None,
-                                config,
-                                output)
+    ret = None
+    if tools_build_list:
+        ret = bcc.do_build_packages(tools_build_list,
+                                   globalConfig.host_arch,
+                                   variant,
+                                   debug,
+                                   verbose,
+                                   clean_type,
+                                   not_build,
+                                   nr_jobs,
+                                   None,
+                                   config,
+                                   output)
+    if ret is None or ret['info'] == 'ok':
+        ret = bcc.do_build_packages(package_build_list,
+                                    arch,
+                                    variant,
+                                    debug,
+                                    verbose,
+                                    clean_type,
+                                    not_build,
+                                    nr_jobs,
+                                    None,
+                                    config,
+                                    output)
     if ret['info'] == 'ok':
         showinfo('Result', 'Success!')
     elif ret['info'] != 'break':
@@ -159,12 +182,13 @@ class globalConfig:
     def load_config(cls):
         cls.build_config = bcc.load_build_config(None, None)
         cls.archs = [i for i in cls.build_config['TARGET_LIST'].keys()]
+        cls.host_arch = cls.build_config['os_type']
 
         if cls.build_config['ret'] != 'ok':
             showerror('Config Error!', cls.build_config['ret'])
             exit(-1)
         def_arch = cls.build_config['DEFAULT_TARGET']
-        cls.entry_var_map = { 'Jobs' : (cls.Jobs, 8),
+        cls.entry_var_map = { 'Jobs' : (cls.Jobs, multiprocessing.cpu_count()),
                       'Debug': (cls.Debug, 0),
                       'Arch' : (cls.Arch, cls.archs.index(def_arch)),
                       'Verbose' : (cls.Verbose, 0),
