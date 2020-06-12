@@ -594,7 +594,6 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             if private_config['compiler_type']:    add_definition(cmd, 'COMPILER_TYPE',    private_config['compiler_type'])
             if private_config['target_arch']:      add_definition(cmd, 'TARGET_ARCH',      private_config['target_arch'])
             if private_config['target_os']:        add_definition(cmd, 'TARGET_OS',        private_config['target_os'])
-            if private_config['c_flags']:          add_definition(cmd, 'CMAKE_C_FLAGS',    private_config['c_flags'])
             if private_config['archiver']:         add_definition(cmd, 'CMAKE_AR',         private_config['archiver'])
             if private_config['c_flags']:          add_definition(cmd, 'CMAKE_C_FLAGS',    private_config['c_flags'])
             if private_config['asm_compiler']:     add_definition(cmd, 'CMAKE_ASM_COMPILER', private_config['asm_compiler'])

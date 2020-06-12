@@ -43,10 +43,11 @@ parser.add_argument('-i', '--info', help='show information', action='store_true'
 def show_info():
     print('================================================================')
     print('            Build Central version 1.0.1')
-    print('Supported target architectures: ' + str([str(arch) for arch in build_config['TARGET_LIST']]))
-    print('Supported variants: '  + str([str(var) for var in build_config['VARIANT_LIST']]))
-    print('Building architecture: ' + target_arch)
-    print('Building variant: ' + model)
+    print('Supported architectures: ' + ', '.join(build_config['TARGET_LIST']))
+    print('     Supported variants: ' + ', '.join(build_config['VARIANT_LIST']))
+    print('  Building architecture: ' + target_arch)
+    print('       Building variant: ' + model)
+    print('             Stage path: ' + os.path.normpath(build_config['private'][target_arch]['stage_dir']))
     print('================================================================')
 
 def show_generator():
@@ -115,7 +116,8 @@ if args.list and not args.dep:
     for pkg in sort_package_list(package_graph):
         pkg_cfg = build_config['PACKAGES'][target_arch].get(pkg, None)
         if pkg_cfg:
-            print('%-28s> %s'%(pkg, pkg_cfg['Path']))
+            path = os.path.normpath(os.path.join(build_config['proj_root'], pkg_cfg['Path']))
+            print('%-28s> %s'%(pkg, path))
         else:
             print('%-28s'%(pkg))
     exit(0)
