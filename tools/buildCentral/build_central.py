@@ -113,7 +113,11 @@ if args.list and not args.dep:
     show_info()
     print('=========================Packages===============================')
     for pkg in sort_package_list(package_graph):
-        print(pkg)
+        pkg_cfg = build_config['PACKAGES'][target_arch].get(pkg, None)
+        if pkg_cfg:
+            print('%-28s> %s'%(pkg, pkg_cfg['Path']))
+        else:
+            print('%-28s'%(pkg))
     exit(0)
 
 arg_package_list = []
@@ -191,9 +195,6 @@ if args.dep:
     tools_build_list.reverse()
 
 if args.info:
-    show_info()
-    show_generator()
-
     retry_list = []
     for pkg in package_build_list:
         installed = bcc.get_install_list(target_arch, pkg, build_config, model)
@@ -207,6 +208,9 @@ if args.info:
         print('==== Warning! Please build the following packages before installing list is available. ====')
         for pkg in retry_list:
             print('  ' + pkg)
+
+    show_info()
+    show_generator()
     exit(0)
 
 def do_print(line):

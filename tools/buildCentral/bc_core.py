@@ -26,6 +26,7 @@ import tarfile
 import copy
 import platform
 import multiprocessing
+import shlex
 
 build_all_target = '__all__' 
 build_cmd_pipe = None
@@ -120,7 +121,8 @@ def init_private_config(config):
                                    'lib_search_path' : [],
                                    'head_search_path' : [],
                                    'env_var' : {},
-                                   'stage_dir' : ''
+                                   'stage_dir' : '',
+                                   'env_source_cmd' : ''
                                    }
 
 def import_configs(dst, src):
@@ -156,6 +158,8 @@ def import_configs(dst, src):
                 dst['cmake_generator'] = generator 
             else:
                 return {'ret' : 'error', 'info' : 'unknown generator %s!'%(generator)}
+        elif item == 'ENV_SOURCE_CMD':
+            dst['env_source_cmd'] = src_value
         elif item == 'MACRO_DEF':
             dst['macro_definition'].update(src_value)
         elif item == 'MAKE_VAR':
@@ -382,9 +386,9 @@ def load_build_config(cfg_dir, proj_root):
                     dep = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
                     if dep:
                         config['PACKAGES'][arch][pkg]['Dependency'] = list(set(dep))
-                    install = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Install', None)
-                    if install:
-                        config['PACKAGES'][arch][pkg]['Install'] = install 
+                    target = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('MakeTarget', None)
+                    if target:
+                        config['PACKAGES'][arch][pkg]['MakeTarget'] = target 
                     tools = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Tools', None)
                     if tools:
                         config['PACKAGES'][arch][pkg]['Tools'] = tools
@@ -470,6 +474,23 @@ def add_definition(cmd, var, value = None):
     else:
         cmd += ['-D' + var + '=' + value]
 
+source_env_cache = {}
+def load_env_from_source_file(source_file):
+    global source_env_cache
+    if source_file in source_env_cache:
+        return source_env_cache[source_file]
+
+    #command = shlex.split("env -i bash -c ' " + source_file + " && env '")
+    command = shlex.split("bash -c ' " + source_file + " && env'")
+    env = {}
+    proc = sp.Popen(command, stdout = sp.PIPE)
+    for line in proc.stdout:
+        (key, _, value) = line.partition("=")
+        env[key] = value.rstrip()
+    proc.communicate()
+    source_env_cache[source_file] = env
+    return env
+
 def setup_global_build_env(arch, config):
     if config['tool_path']:
         pathes = os.pathsep.join(config['tool_path'])
@@ -489,16 +510,6 @@ def setup_global_build_env(arch, config):
             env = pathes
         os.putenv('LD_LIBRARY_PATH', env)
 
-def unset_environment(env):
-    if env in os.environ:
-        del os.environ[env]
-
-def setup_package_build_env(private_config, env, item):
-    if private_config[item]:
-        os.putenv(env, private_config[item])
-    else:
-        unset_environment(env)
-
 def get_generator_id(generator, arch, config):
     if not generator:
         if arch in config['private']:
@@ -517,21 +528,13 @@ def check_generator(generator, arch, config):
 def get_build_cmd_type(package, arch, config):
     cmd_type = 'unknown'
     package_base = config['PACKAGES'][arch][package]['Path']
-    f = os.path.join(package_base, 'build_package')
-    if os.access(f, os.X_OK):
-        cmd_type = 'cmd'
-    elif os.path.exists(os.path.join(package_base, 'CMakeLists.txt')): 
+    if os.path.exists(os.path.join(package_base, 'CMakeLists.txt')): 
         cmd_type = 'cmake'
     elif os.path.exists(os.path.join(package_base, 'Makefile')) or os.path.exists(os.path.join(package_base, 'GNUMakefile')): 
         cmd_type = 'make'
     return cmd_type
 
-def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs, generator, cmd_type, config, cmd):
-    private_config = copy.deepcopy(config['private'][arch])
-    import_configs(private_config, config['PACKAGES'][arch][package])
-    if 'PACKAGES-PER-ARCH' in config and arch in config['PACKAGES-PER-ARCH'] and package in config['PACKAGES-PER-ARCH'][arch]:
-        import_configs(private_config, config['PACKAGES-PER-ARCH'][arch][package])
-
+def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs, generator, cmd_type, config, private_config, cmd):
     sys_root = private_config['sys_root']
     stage_root = config['PACKAGES'][arch][package]['StageDir']
     if stage_root:
@@ -550,21 +553,11 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         make_tool_with_job = ['make', '-j', str(nr_jobs)]
 
     package_base = config['PACKAGES'][arch][package]['Path']
-    if cmd_type == 'cmd':
-        # if exists 'build_package' file, run it;
-        f = os.path.join(package_base, 'build_package')
-        if stage == 'clean':
-            cmd += [f, '-c', config['VARIANT_LIST'][variant]['MACRO']]
-        elif stage == 'make':
-            cmd += [f, '-m', config['VARIANT_LIST'][variant]['MACRO']]
-        elif stage == 'make_install':
-            cmd += [f, '-i', config['VARIANT_LIST'][variant]['MACRO']]
-        elif stage == 'uninstall':
-            cmd += [f, '-u', config['VARIANT_LIST'][variant]['MACRO']]
-    elif cmd_type == 'cmake':
+    make_target = config['PACKAGES'][arch][package]['MakeTarget']
+    if cmd_type == 'cmake':
         # if exists 'CMakeLists.txt', cmake it;
-        setup_package_build_env(private_config, 'C_COMPILER', 'c_compiler')
-        setup_package_build_env(private_config, 'CXX_COMPILER', 'cxx_compiler')
+        private_config['env_var']['C_COMPILER'] = private_config['c_compiler']
+        private_config['env_var']['CXX_COMPILER'] = private_config['cxx_compiler']
         if stage == 'clean':
             cmd += make_tool +  ['clean']
         elif stage == 'cmake':
@@ -638,13 +631,13 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             add_definition(cmd, 'PACKAGE_NAME', package)
             cmd.append(package_base)
         elif stage == 'make':
-            cmd += make_tool_with_job
-        elif stage == 'make_install':
             generator = check_generator(generator, arch, config) 
             if 'Visual Studio' in generator:
                 cmd = []
             else:
-                cmd += make_tool_with_job + ['install']
+                cmd += make_tool_with_job
+                if make_target:
+                    cmd += [make_target]
         elif stage == 'uninstall':
             cmd += make_tool + ['uninstall']
     elif cmd_type == 'make':
@@ -653,8 +646,8 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             cmd += make_tool + ['clean']
         elif stage == 'make':
             cmd += make_tool_with_job
-        elif stage == 'make_install':
-            cmd += make_tool_with_job + ['install']
+            if make_target:
+                cmd += [make_target]
             if stage_root:
                 cmd += ['DESTDIR='+stage_root]
         elif stage == 'uninstall':
@@ -694,11 +687,6 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         if private_config['cxx_flags']:
             cxxflags += ' ' + private_config['cxx_flags']
 
-        if cflags:
-            cmd += ['CFLAGS=' + cflags]
-        if cxxflags:
-            cmd += ['CXXFLAGS=' + cxxflags]
-
         ldflags = ''
         if sys_root:
             pathes = ['-L' + os.path.expanduser(os.path.join(p, 'lib')) for p in sys_root]
@@ -710,8 +698,14 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
             ldflags = ' ' + ' '.join(pathes)
         if private_config['ld_flags']:
             ldflags += ' ' + private_config['ld_flags']
-        if ldflags:
-            cmd += ['LDFLAGS=' + ldflags]
+
+        if not private_config['env_source_cmd']:
+            if cflags:
+                cmd += ['CFLAGS=' + cflags]
+            if cxxflags:
+                cmd += ['CXXFLAGS=' + cxxflags]
+            if ldflags:
+                cmd += ['LDFLAGS=' + ldflags]
 
         variables = []
         if make_var:
@@ -722,8 +716,9 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         if variables:
             cmd += [' '.join(variables)]
 
+    cmd = shlex.split(' '.join(cmd))
     print(cmd)
-    return private_config['env_var']
+    return private_config
 
 def figure_out_build_order(G, package, build_list):
     idx = build_list.index(package)
@@ -750,15 +745,11 @@ def get_tools(config, packages):
     return tools
 
 def should_install(config, arch, package):
-    return config['PACKAGES'][arch][package].get('Install', True)
+    target = config['PACKAGES'][arch][package].get('MakeTarget', None)
+    return target and target == 'install'
 
 def setup_package_env(env_list):
-    for env in env_list:
-        os.putenv(env, env_list[env])
-
-def clear_package_env(env_list):
-    for env in env_list:
-        unset_environment(env)
+    os.environ.update(env_list)
 
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
@@ -783,9 +774,22 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
     if nr_jobs < 1:
         nr_jobs = 1
 
+    pkg_cfg = {}
+    for pkg in packages:
+        cfg = copy.deepcopy(config['private'][arch])
+        import_configs(cfg, config['PACKAGES'][arch][pkg])
+        if 'PACKAGES-PER-ARCH' in config and arch in config['PACKAGES-PER-ARCH'] and pkg in config['PACKAGES-PER-ARCH'][arch]:
+            import_configs(cfg, config['PACKAGES-PER-ARCH'][arch][pkg])
+        cfg['env_var'].update(load_env_from_source_file(cfg['env_source_cmd'])) 
+        pkg_cfg[pkg] = cfg
+
+    setup_global_build_env(arch, config)
     # ==== Clean packages ====
     if clean:
         for pkg in packages:
+            def setup_environment():
+                setup_package_env(pkg_cfg[pkg]['env_var'])
+
             config_package_path(config, arch, pkg, variant)
             cur_package = pkg
             cmd_type = get_build_cmd_type(pkg, arch, config)
@@ -793,18 +797,16 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
             else:
                 work_path = config['PACKAGES'][arch][pkg]['Path']
-            env = []
             if os.path.exists(work_path):
                 try:
                     os.chdir(work_path)
 
                     if clean == 'uninstall_clean' and should_install(config, arch, pkg):
                         cmd = []
-                        env = create_build_command(pkg, arch, variant, debug, verbose, 'uninstall',
-                                                   nr_jobs, generator, cmd_type, config, cmd)
+                        create_build_command(pkg, arch, variant, debug, verbose, 'uninstall',
+                                                   nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
                         if cmd:
-                            setup_package_env(env)
-                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
                                 if not line: break
@@ -814,14 +816,16 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                     break
                             if build_stop:
                                 break
+                except:
+                    pass
 
+                try:
                     if clean == 'uninstall_clean' or clean == 'clean_only':
                         cmd = []
-                        env = create_build_command(pkg, arch, variant, debug, verbose, 'clean',
-                                             nr_jobs, generator, cmd_type, config, cmd)
+                        create_build_command(pkg, arch, variant, debug, verbose, 'clean',
+                                             nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
                         if cmd:
-                            setup_package_env(env)
-                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
                                 if not line: break
@@ -841,14 +845,12 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
 
                 if build_stop:
                     break
-            clear_package_env(env)
 
     if not_build:
         os.chdir(current_dir)
         return {'info' : ret, 'package' : None}
 
-        # ==== Build packages ====
-    setup_global_build_env(arch, config)
+    # ==== Build packages ====
     package_built = {}
     try:
         for pkg in packages:
@@ -902,11 +904,12 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     return {'info' : 'Package %s: cannot create work path %s!'%s(cur_package, work_path)}
 
             os.chdir(work_path)
+            def setup_environment():
+                setup_package_env(pkg_cfg[pkg]['env_var'])
             cmd = []
-            env = create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, cmd_type, config, cmd)
+            create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
             if cmd:
-                setup_package_env(env)
-                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
                     if not line: break
@@ -914,7 +917,6 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     log_fd.write(line)
                     if build_stop:
                         break
-                clear_package_env(env)
                 if build_stop:
                     break
                 build_cmd_pipe.wait()
@@ -923,13 +925,9 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     break
 
             cmd = []
-            make_type = 'make'
-            if should_install(config, arch, pkg):
-                make_type = 'make_install'
-            env = create_build_command(pkg, arch, variant, debug, verbose, make_type, nr_jobs, generator, cmd_type, config, cmd)
+            create_build_command(pkg, arch, variant, debug, verbose, 'make', nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
             if cmd:
-                setup_package_env(env)
-                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
                     if not line: break
@@ -937,7 +935,6 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     log_fd.write(line)
                     if build_stop:
                         break
-                clear_package_env(env)
                 if build_stop:
                     break
                 build_cmd_pipe.wait()
