@@ -49,7 +49,7 @@ message_window_height = 8
 
 """
 def draw_packages(config, arch, variant):
-    graphs = config['BUILD'][arch][variant]['GRAPH']
+    graphs = config['GROUPS'][arch][variant]['GRAPH']
     nx.draw_networkx(graphs,
                      pos=nx.circular_layout(graphs),
                      width=2,
@@ -68,13 +68,19 @@ def build_packages(package_build_list, config, output, clean = False, not_build 
     verbose = globalConfig.Verbose.get()
     variant = globalConfig.get_variant()
     nr_jobs = globalConfig.Jobs.get()
+    host_arch = globalConfig.host_arch
 
-    tools_graph = config['BUILD'][globalConfig.host_arch][variant]['GRAPH']
-    tools = bcc.get_tools(config, package_build_list)
+    if host_arch in build_config['GROUPS'] and variant in build_config['GROUPS'][host_arch]:
+        tools_graph = build_config['GROUPS'][host_arch][variant]['GRAPH']
+    else:
+        tools_graph = None
+
     tools_build_list = []
-    for tool in tools:
-        bcc.generate_build_order(tools_graph, tool, tools_build_list)
-    tools_build_list.reverse()
+    if tools_graph:
+        tools = bcc.get_tools(config, arch, package_build_list)
+        for tool in tools:
+            bcc.generate_build_order(tools_graph, tool, tools_build_list)
+        tools_build_list.reverse()
 
     clean_type = None
     if clean:
@@ -192,7 +198,7 @@ class globalConfig:
                       'Debug': (cls.Debug, 0),
                       'Arch' : (cls.Arch, cls.archs.index(def_arch)),
                       'Verbose' : (cls.Verbose, 0),
-                      'Variant' : (cls.variant, cls.build_config['VARIANT'][def_arch].index(cls.build_config['DEFAULT_VARIANT']))}
+                      'Variant' : (cls.variant, cls.build_config['BUILD_GROUP_NAME'][def_arch].index(cls.build_config['DEFAULT_GROUP']))}
         try:
             fp = open(cls.config_save_file, 'r')
         except IOError:
@@ -234,7 +240,7 @@ class globalConfig:
 
     @classmethod
     def get_package(cls):
-        return cls.build_config['BUILD'][cls.get_arch()][cls.get_variant()]['GRAPH']
+        return cls.build_config['GROUPS'][cls.get_arch()][cls.get_variant()]['GRAPH']
 
     @classmethod
     def get_build_config(cls):
@@ -242,26 +248,28 @@ class globalConfig:
 
     @classmethod
     def get_variant(cls):
-        return cls.build_config['VARIANT'][cls.get_arch()][cls.variant.get()]
+        return cls.build_config['BUILD_GROUP_NAME'][cls.get_arch()][cls.variant.get()]
 
     @classmethod
     def set_description(cls):
         target_info = cls.build_config['TARGET_LIST'][cls.get_arch()]
-        var_info = cls.build_config['VARIANT_LIST'][cls.get_variant()]
+        var_info = cls.build_config['BUILD_GROUPS'][cls.get_variant()]
         desc = '##Target: %s\n'%(target_info['DESCRIPTION']) 
-        desc += '##Variant: %s\nMacro: %s'%(var_info['DESCRIPTION'], var_info['MACRO']) 
+        macro = var_info.get('MACRO', None)
+        if macro:
+            desc += '##Variant: %s\nMacro: %s'%(var_info['DESCRIPTION'], var_info['MACRO']) 
         cls.description.set(desc)
 
 class archZone:
     def __init__(self, parent):
         i = 0
-        for arch in globalConfig.build_config['BUILD']:
+        for arch in globalConfig.build_config['GROUPS']:
             Radiobutton(parent, text=arch,
                         variable=globalConfig.Arch, value=globalConfig.archs.index(arch),
                         command=self.onSelected).pack(anchor=W)
             i += 1
     def onSelected(self):
-        num_var = len(globalConfig.build_config['VARIANT'][globalConfig.get_arch()])
+        num_var = len(globalConfig.build_config['BUILD_GROUP_NAME'][globalConfig.get_arch()])
         if (num_var <= globalConfig.variant.get()):
             globalConfig.variant.set(num_var - 1)
         tk_service_list.populate(globalConfig.get_package())
@@ -337,7 +345,7 @@ class variantZone:
             radio.destroy()
         self.buttons = []
         id = 0
-        for variant in globalConfig.build_config['VARIANT'][globalConfig.get_arch()]:
+        for variant in globalConfig.build_config['BUILD_GROUP_NAME'][globalConfig.get_arch()]:
             radio = Radiobutton(self.parent, text=variant,
                         variable=globalConfig.variant, value=id,
                         command=self.onSelected)

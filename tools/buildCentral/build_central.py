@@ -32,21 +32,21 @@ parser.add_argument('-b', '--clean_build', help='always go along with -c: -cb me
 parser.add_argument('-l', '--list', help='list all packages', action='store_true')
 parser.add_argument('-e', '--exclusive', help='packages not specified for build', action='store_true')
 parser.add_argument('-t', '--target_arch', help='specify target arch. Use -l for details', default=None)
-parser.add_argument('-m', '--build_model', help='specify a model to build. Use -l for details', default=None)
+parser.add_argument('-g', '--build_group', help='specify a group to build. Use -l for details', default=None)
 parser.add_argument('-a', '--dep', help='build with dependency', action='store_true')
 parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, default=0)
-parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -l for details', default=None)
+parser.add_argument('-r', '--cmake_generator', help='specify a generator for cmake. Use -i for details', default=None)
 parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
-parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
 parser.add_argument('-i', '--info', help='show information', action='store_true')
+parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
 
 def show_info():
     print('================================================================')
     print('            Build Central version 1.0.1')
     print('Supported architectures: ' + ', '.join(build_config['TARGET_LIST']))
-    print('     Supported variants: ' + ', '.join(build_config['VARIANT_LIST']))
+    print('        Supported group: ' + ', '.join(build_config['BUILD_GROUPS']))
     print('  Building architecture: ' + target_arch)
-    print('       Building variant: ' + model)
+    print('         Building group: ' + build_group)
     print('             Stage path: ' + os.path.normpath(build_config['private'][target_arch]['stage_dir']))
     print('================================================================')
 
@@ -80,8 +80,8 @@ if not target_arch in build_config['TARGET_LIST']:
     print('Error: invalid target arch: %s'%(args.target_arch))
     exit(-1)
 
-if not target_arch in build_config['VARIANT']:
-    print('Error: arch %s is not defined in BUILD tag!'%(target_arch))
+if not target_arch in build_config['BUILD_GROUP_NAME']:
+    print('Error: arch %s is not defined in GROUPS tag!'%(target_arch))
     exit(-1)
 
 def sort_package_list(pkgs):
@@ -97,17 +97,20 @@ def sort_package_list(pkgs):
         tmp_list.append(bcc.build_all_target)
     return tmp_list
 
-model = args.build_model
-if not model:
-    model = build_config['DEFAULT_VARIANT']
-if not model in build_config['VARIANT'][target_arch]:
-    print('Error: variant %s is invalid for arch %s!'%(args.build_model, target_arch))
+build_group = args.build_group
+if not build_group:
+    build_group = build_config['DEFAULT_GROUP']
+if not build_group in build_config['BUILD_GROUP_NAME'][target_arch]:
+    print('Error: variant %s is invalid for arch %s!'%(build_group, target_arch))
     print('Available variant for arch %s are: '%(target_arch))
-    print(build_config['VARIANT'][target_arch])
+    print(build_config['BUILD_GROUP_NAME'][target_arch])
     exit(-1)
 
-package_graph = build_config['BUILD'][target_arch][model]['GRAPH']
-tools_graph = build_config['BUILD'][host_arch][model]['GRAPH']
+package_graph = build_config['GROUPS'][target_arch][build_group]['GRAPH']
+if host_arch in build_config['GROUPS'] and build_group in build_config['GROUPS'][host_arch]:
+    tools_graph = build_config['GROUPS'][host_arch][build_group]['GRAPH']
+else:
+    tools_graph = None
 
 # -l without -a
 if args.list and not args.dep:
@@ -168,11 +171,13 @@ if args.list and args.dep:
         bcc.generate_build_order(package_graph, pkg, dep_list)
         dep_list.reverse()
 
-        tools = bcc.get_tools(build_config, dep_list)
-        tools_dep_list = []
-        for tool in tools:
-            bcc.generate_build_order(tools_graph, tool, tools_dep_list)
-        tools_dep_list.reverse()
+        tools = []
+        if tools_graph:
+            tools = bcc.get_tools(build_config, target_arch, dep_list)
+            tools_dep_list = []
+            for tool in tools:
+                bcc.generate_build_order(tools_graph, tool, tools_dep_list)
+            tools_dep_list.reverse()
 
         for tool in tools_dep_list:
             print('    ' + tool + '(host)')
@@ -191,15 +196,16 @@ else:
 
 tools_build_list = []
 if args.dep:
-    tools = bcc.get_tools(build_config, package_build_list)
-    for tool in tools:
-        bcc.generate_build_order(tools_graph, tool, tools_build_list)
-    tools_build_list.reverse()
+    if tools_graph:
+        tools = bcc.get_tools(build_config, target_arch, package_build_list)
+        for tool in tools:
+            bcc.generate_build_order(tools_graph, tool, tools_build_list)
+        tools_build_list.reverse()
 
 if args.info:
     retry_list = []
     for pkg in package_build_list:
-        installed = bcc.get_install_list(target_arch, pkg, build_config, model)
+        installed = bcc.get_install_list(target_arch, pkg, build_config, build_group)
         if installed['info'] == 'retry':
             retry_list.append(pkg)
         elif installed['info'] == 'ok':
@@ -232,7 +238,7 @@ failure_package = ''
 if tools_build_list:
     ret = bcc.do_build_packages(tools_build_list,
                                host_arch,
-                               model,
+                               build_group,
                                args.debug,
                                args.verbose,
                                clean_type,
@@ -247,7 +253,7 @@ if tools_build_list:
 if ret is None or ret['info'] == 'ok':
     ret = bcc.do_build_packages(package_build_list,
                                target_arch,
-                               model,
+                               build_group,
                                args.debug,
                                args.verbose,
                                clean_type,

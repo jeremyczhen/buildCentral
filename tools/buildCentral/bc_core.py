@@ -89,7 +89,7 @@ def do_import_build_variant(config, build_cfg, variant, build_list, arch):
 
 def import_build_variant(config, build_cfg, arch):
     build_list = {}
-    for variant in config['VARIANT'][arch]:
+    for variant in config['BUILD_GROUP_NAME'][arch]:
         do_import_build_variant(config, build_cfg, variant, build_list, arch)
 
     return build_list
@@ -256,10 +256,8 @@ def config_package_path(config, arch, pkg, variant):
     if os.path.isfile(src_path):
         config['PACKAGES'][arch][pkg]['Path'] = os.path.join(output_dir,
                                                              config['PACKAGES'][arch][pkg]['Path'])
-        config['PACKAGES'][arch][pkg]['PackageFile'] = src_path
     else:
         config['PACKAGES'][arch][pkg]['Path'] = src_path
-        config['PACKAGES'][arch][pkg]['PackageFile'] = None 
 
     config['PACKAGES'][arch][pkg]['BuildDir'] = os.path.join(output_dir, 'build', variant, pkg, arch)
     if config['private'][arch]['stage_dir']:
@@ -303,13 +301,10 @@ def load_build_config(cfg_dir, proj_root):
         config['ret'] = 'Cannot open config file: %s!'%(cfg_file)
         return config
     else:
-        """
         template = Template(fd.read())
         fd.close()
         try:
-            cfg = json.loads(template.substitute(LD_LIBRARY_PATH = os.environ.get('LD_LIBRARY_PATH'),
-                        PATH = os.environ.get('PATH'),
-                        ROOT = proj_root))
+            cfg = json.loads(template.substitute(PROOT = proj_root.replace('\\', '/')))
         except ValueError as e:
             config['ret'] = '%s: Config file %s is not in json format!'%(str(e), cfg_file)
             return config
@@ -321,6 +316,7 @@ def load_build_config(cfg_dir, proj_root):
         except ValueError as e:
             config['ret'] = '%s: Config file %s is not in json format!'%(str(e), cfg_file)
             return config
+        """
 
         config['PROJECT_NAME'] = cfg.get('PROJECT_NAME', None)
         config['LOGO'] = cfg.get('LOGO', None)
@@ -339,18 +335,18 @@ def load_build_config(cfg_dir, proj_root):
         else:
             config['ret'] = 'DEFAULT_TARGET should be defined!'
             return config
-        if 'VARIANTS' in cfg:
-            config['VARIANT_LIST'] = cfg['VARIANTS']
+        if 'BUILD_GROUPS' in cfg:
+            config['BUILD_GROUPS'] = cfg['BUILD_GROUPS']
         else:
-            config['ret'] = 'VARIANTS should be defined!'
+            config['ret'] = 'BUILD_GROUPS should be defined!'
             return config
-        if 'DEFAULT_VARIANT' in cfg:
-            config['DEFAULT_VARIANT'] = cfg['DEFAULT_VARIANT']
-            if not config['DEFAULT_VARIANT'] in config['VARIANT_LIST']:
-                config['ret'] = 'Invalid DEFAULT_VARIANT!'
+        if 'DEFAULT_GROUP' in cfg:
+            config['DEFAULT_GROUP'] = cfg['DEFAULT_GROUP']
+            if not config['DEFAULT_GROUP'] in config['BUILD_GROUPS']:
+                config['ret'] = 'Invalid DEFAULT_GROUP!'
                 return config
         else:
-            config['ret'] = 'DEFAULT_VARIANT should be defined!'
+            config['ret'] = 'DEFAULT_GROUP should be defined!'
             return config
 
         ret = import_private_config(config)
@@ -381,47 +377,53 @@ def load_build_config(cfg_dir, proj_root):
                         config['PACKAGES'][arch][pkg] = {}
 
                     path = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Path', None)
-                    if path:
+                    if not path is None:
                         config['PACKAGES'][arch][pkg]['Path'] = path
                     dep = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
-                    if dep:
+                    if not dep is None:
                         config['PACKAGES'][arch][pkg]['Dependency'] = list(set(dep))
                     target = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('MakeTarget', None)
-                    if target:
+                    if not target is None:
                         config['PACKAGES'][arch][pkg]['MakeTarget'] = target 
                     tools = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Tools', None)
-                    if tools:
+                    if not tools is None:
                         config['PACKAGES'][arch][pkg]['Tools'] = tools
 
-        config['BUILD'] = {}
-        config['VARIANT'] = {}
-        if 'BUILD' in cfg:
-            for arch in cfg['BUILD']:
+        for arch in config['PACKAGES']:
+            for pkg in config['PACKAGES'][arch]:
+                if 'Tools' in config['PACKAGES'][arch][pkg]:
+                    config['PACKAGES'][arch][pkg]['Tools'] = set(config['PACKAGES'][arch][pkg]['Tools'])
+
+        config['GROUPS'] = {}
+        config['BUILD_GROUP_NAME'] = {}
+        if 'GROUPS' in cfg:
+            for arch in cfg['GROUPS']:
                 if not arch in config['TARGET_LIST']:
-                    config['ret'] = 'Arch %s is invalid for BUILD in %s!'%(arch, cfg_file)
+                    config['ret'] = 'Arch %s is invalid for GROUPS in %s!'%(arch, cfg_file)
                     return config
-                config['VARIANT'][arch] = []
-                for group in cfg['BUILD'][arch]:
-                    if group in config['VARIANT_LIST']:
-                        config['VARIANT'][arch] += [group]
-                if not config['DEFAULT_VARIANT'] in cfg['BUILD'][arch]:
-                    config['ret'] = 'Default variant %s defined by DEFAULT_VARIANT is not in arch %s!'%(config['DEFAULT_VARIANT'], arch)
+
+                config['BUILD_GROUP_NAME'][arch] = []
+                for group in cfg['GROUPS'][arch]:
+                    if group in config['BUILD_GROUPS']:
+                        config['BUILD_GROUP_NAME'][arch] += [group]
+
+                if not config['DEFAULT_GROUP'] in cfg['GROUPS'][arch]:
+                    config['ret'] = 'Default variant %s defined by DEFAULT_GROUP is not in arch %s!'%(config['DEFAULT_GROUP'], arch)
                     return config
-                config['BUILD'][arch] = import_build_variant(config, cfg['BUILD'][arch], arch)
+                config['GROUPS'][arch] = import_build_variant(config, cfg['GROUPS'][arch], arch)
                 if config['ret'] != 'ok':
                     config['ret'] = 'Error! Arch %s, '%(arch) + config['ret']
                     return config
 
-                for build in config['VARIANT'][arch]:
-                    config['BUILD'][arch][build]['GRAPH'] = nx.DiGraph()
+                for build in config['BUILD_GROUP_NAME'][arch]:
+                    config['GROUPS'][arch][build]['GRAPH'] = nx.DiGraph()
 
-                    for pkg in config['BUILD'][arch][build]['PACKAGES']:
+                    for pkg in config['GROUPS'][arch][build]['PACKAGES']:
                         if not pkg in config['PACKAGES'][arch]:
                             config['ret'] = 'Arch: %s, variant %s: Package %s is not defined in PACKAGE in file %s!'%(arch, build, pkg, cfg_file)
                             return config
 
                         if 'Tools' in config['PACKAGES'][arch][pkg]:
-                            config['PACKAGES'][arch][pkg]['Tools'] = set(config['PACKAGES'][arch][pkg]['Tools'])
                             for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
                                 if not dep_pkg in config['PACKAGES'][host_arch]:
                                     config['ret'] = 'Arch: %s, variant %s, Tool %s is not defined for host %s in file %s!'%(arch, build, dep_pkg, host_arch, cfg_file)
@@ -432,15 +434,15 @@ def load_build_config(cfg_dir, proj_root):
                                 if not dep_pkg in config['PACKAGES'][arch]:
                                     config['ret'] = 'Arch: %s, variant %s, Package %s is not defined in Dependency in file %s!'%(arch, build, dep_pkg, cfg_file)
                                     return config
-                                config['BUILD'][arch][build]['GRAPH'].add_edge(pkg, dep_pkg)
+                                config['GROUPS'][arch][build]['GRAPH'].add_edge(pkg, dep_pkg)
 
-                    for pkg in config['BUILD'][arch][build]['GRAPH']:
-                        if not pkg in config['BUILD'][arch][build]['PACKAGES']:
+                    for pkg in config['GROUPS'][arch][build]['GRAPH']:
+                        if not pkg in config['GROUPS'][arch][build]['PACKAGES']:
                             #print('File %s, arch %s, variant %s: package %s is depended but not list for build!'%(cfg_file, arch, build, pkg))
                             pass
 
                     loop_str = ''
-                    for loop in nx.simple_cycles(config['BUILD'][arch][build]['GRAPH']):
+                    for loop in nx.simple_cycles(config['GROUPS'][arch][build]['GRAPH']):
                         loop_str += str(loop) + ', '
 
                     if loop_str:
@@ -448,15 +450,15 @@ def load_build_config(cfg_dir, proj_root):
                         return config
 
                     root_pkg = []
-                    for pkg, degree in config['BUILD'][arch][build]['GRAPH'].in_degree():
+                    for pkg, degree in config['GROUPS'][arch][build]['GRAPH'].in_degree():
                         if degree == 0:
                             root_pkg.append(pkg)
                     for pkg in root_pkg:
-                        config['BUILD'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
+                        config['GROUPS'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
 
-                    for pkg in config['BUILD'][arch][build]['PACKAGES']:
-                        if not pkg in config['BUILD'][arch][build]['GRAPH']:
-                            config['BUILD'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
+                    for pkg in config['GROUPS'][arch][build]['PACKAGES']:
+                        if not pkg in config['GROUPS'][arch][build]['GRAPH']:
+                            config['GROUPS'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
 
     host_stage_dir = os.path.join(config['OUTPUT_DIR'], 'stage', config['HOST'])
     config['tool_path'] = (os.path.join(config['proj_root'], 'tools', 'bin', config['os_type']),
@@ -477,12 +479,16 @@ def add_definition(cmd, var, value = None):
 source_env_cache = {}
 def load_env_from_source_file(source_file):
     global source_env_cache
+    env = {}
+
+    if not source_file:
+        return env
+
     if source_file in source_env_cache:
         return source_env_cache[source_file]
 
     #command = shlex.split("env -i bash -c ' " + source_file + " && env '")
     command = shlex.split("bash -c ' " + source_file + " && env'")
-    env = {}
     proc = sp.Popen(command, stdout = sp.PIPE)
     for line in proc.stdout:
         (key, _, value) = line.partition("=")
@@ -588,7 +594,9 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
                 m = [i + '=' + macro_var[i] if macro_var[i] else i for i in macro_var]
                 add_definition(cmd, 'MACRO_DEF', ';'.join(m))
 
-            add_definition(cmd, 'MACRO_VARIANT', config['VARIANT_LIST'][variant]['MACRO'])
+            build_macro = config['BUILD_GROUPS'][variant].get('MACRO', None)
+            if build_macro:
+                add_definition(cmd, 'MACRO_VARIANT', build_macro)
 
             if private_config['toolchain_root']:   add_definition(cmd, 'TOOL_ROOT',        private_config['toolchain_root'])
             if private_config['compiler_type']:    add_definition(cmd, 'COMPILER_TYPE',    private_config['compiler_type'])
@@ -736,19 +744,24 @@ def generate_build_order(G, package, build_list):
         build_list.append(package)
         figure_out_build_order(G, package, build_list)
 
-def get_tools(config, packages):
+def get_tools(config, arch, packages):
     tools = set()
     for pkg in packages:
-        if pkg != build_all_target and 'Tools' in config['PACKAGES'][config['os_type']][pkg]:
-            tools = tools | (config['PACKAGES'][config['os_type']][pkg]['Tools'] - tools)
+        if pkg != build_all_target and 'Tools' in config['PACKAGES'][arch][pkg]:
+            tools = tools | (config['PACKAGES'][arch][pkg]['Tools'] - tools)
     return tools
 
 def should_install(config, arch, package):
     target = config['PACKAGES'][arch][package].get('MakeTarget', None)
     return target and target == 'install'
 
-def setup_package_env(env_list):
+def setup_env(env_list):
     os.environ.update(env_list)
+
+def unset_env(env_list):
+    for env in env_list:
+        if env in os.environ:
+            del os.environ[env]
 
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
@@ -758,7 +771,6 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
         nr_jobs = multiprocessing.cpu_count()
     cur_package = '' 
     build_stop = 0
-    current_dir = os.getcwd()
     ret = 'ok'
     log_base = os.path.join(config['LOG_DIR'], arch)
     if not os.path.exists(log_base):
@@ -786,26 +798,33 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
     # ==== Clean packages ====
     if clean:
         for pkg in packages:
-            def setup_environment():
-                setup_package_env(pkg_cfg[pkg]['env_var'])
-
             config_package_path(config, arch, pkg, variant)
             cur_package = pkg
             cmd_type = get_build_cmd_type(pkg, arch, config)
+
             if cmd_type == 'cmake':
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
             else:
                 work_path = config['PACKAGES'][arch][pkg]['Path']
+
+            def setup_environment():
+                os.chdir(work_path)
+                setup_env(pkg_cfg[pkg]['env_var'])
+
+            env_set = False 
             if os.path.exists(work_path):
                 try:
-                    os.chdir(work_path)
-
                     if clean == 'uninstall_clean' and should_install(config, arch, pkg):
                         cmd = []
                         create_build_command(pkg, arch, variant, debug, verbose, 'uninstall',
                                                    nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
                         if cmd:
-                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
+                            if config['os_type'] == 'windows':
+                                env_set = True 
+                                setup_environment()
+                                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                            else:
+                                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
                                 if not line: break
@@ -824,7 +843,13 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                         create_build_command(pkg, arch, variant, debug, verbose, 'clean',
                                              nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
                         if cmd:
-                            build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
+                            if config['os_type'] == 'windows':
+                                if not env_set:
+                                    env_set = True
+                                    setup_environment()
+                                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                            else:
+                                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                             while True:
                                 line = build_cmd_pipe.stdout.readline()
                                 if not line: break
@@ -832,6 +857,8 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                                 log_fd.write(line)
                                 if build_stop:
                                     break
+                            if build_stop:
+                                break
 
                 except:
                     pass
@@ -845,70 +872,50 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 if build_stop:
                     break
 
+            if env_set:
+                env_set = False
+                unset_env(pkg_cfg[pkg]['env_var'])
+
     if not_build:
-        os.chdir(current_dir)
         return {'info' : ret, 'package' : None}
 
     # ==== Build packages ====
-    package_built = {}
     try:
         for pkg in packages:
             config_package_path(config, arch, pkg, variant)
             cur_package = pkg
-            package_base = config['PACKAGES'][arch][pkg]['Path']
-            if config['PACKAGES'][arch][pkg]['PackageFile']:
-                extract_dir = config['PACKAGES'][arch][pkg]['Path']
-                # in this case package_base equal to extract_dir
-                try:
-                    tar = tarfile.open(config['PACKAGES'][arch][pkg]['PackageFile'])
-                except:
-                    os.chdir(current_dir)
-                    return {'info' : 'Package %s: Package file %s does not exist or is not valid tar ball!'%(cur_package, config['PACKAGES'][arch][pkg]['PackageFile']), 'package' : cur_package}
-                else:
-                    tar.extractall(path=os.path.dirname(extract_dir))
-                    tar.close()
-                if not os.path.exists(extract_dir):
-                    os.chdir(current_dir)
-                    return {'info' : 'Package %s: Package file %s is not extracted to %s!'%(cur_package, config['PACKAGES'][arch][pkg]['PackageFile'], extract_dir), 'package' : cur_package}
-
-            if not os.path.exists(package_base):
-                os.chdir(current_dir)
-                return {'info' : 'Package %s: base directory %s does not exist!'%(cur_package, package_base), 'package' : cur_package}
-
             cmd_type = get_build_cmd_type(pkg, arch, config)
             if cmd_type == 'cmake':
                 work_path = config['PACKAGES'][arch][pkg]['BuildDir']
-            elif cmd_type == 'unknown':
+                if not os.path.exists(work_path):
+                    try:
+                        os.makedirs(work_path)
+                    except:
+                        return {'info' : 'Package %s: cannot create work path %s!'%s(pkg, work_path)}
+            elif cmd_type == 'make':
+                work_path = config['PACKAGES'][arch][pkg]['Path']
+                if not os.path.exists(work_path):
+                    ret = 'Work path for package %s does not exist!'%(pkg)
+                    break
+            else:
                 ret = 'Fail to create build command for package %s! Possibly there is no CMakeList, Makefile or GNUMakefile for the package.'%(pkg)
                 break
-            else:
-                work_path = package_base
 
-            if work_path in package_built:
-                package_cleared = package_built[work_path]
-                try:
-                    print('==== Note: package %s is cleared because work path of %s overlap with it.'%(package_cleared, pkg))
-                    do_build_packages([package_cleared], arch, variant, debug, verbose, 'clean_only', True, nr_jobs, generator, config, output)
-                except Exception as e:
-                    print(e)
-                    pass
-            else:
-                package_built[work_path] = pkg
-
-            if not os.path.exists(work_path):
-                try:
-                    os.makedirs(work_path)
-                except:
-                    os.chdir(current_dir)
-                    return {'info' : 'Package %s: cannot create work path %s!'%s(cur_package, work_path)}
-
-            os.chdir(work_path)
             def setup_environment():
-                setup_package_env(pkg_cfg[pkg]['env_var'])
+                os.chdir(work_path)
+                setup_env(pkg_cfg[pkg]['env_var'])
+
+            env_set = False
             cmd = []
-            create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
+            create_build_command(pkg, arch, variant, debug, verbose, 'cmake', nr_jobs,
+                                 generator, cmd_type, config, pkg_cfg[pkg], cmd)
             if cmd:
-                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
+                if config['os_type'] == 'windows':
+                    env_set = True
+                    setup_environment()
+                    build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                else:
+                    build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
                     if not line: break
@@ -924,9 +931,16 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                     break
 
             cmd = []
-            create_build_command(pkg, arch, variant, debug, verbose, 'make', nr_jobs, generator, cmd_type, config, pkg_cfg[pkg], cmd)
+            create_build_command(pkg, arch, variant, debug, verbose, 'make', nr_jobs,
+                                 generator, cmd_type, config, pkg_cfg[pkg], cmd)
             if cmd:
-                build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
+                if config['os_type'] == 'windows':
+                    if not env_set:
+                        env_set = True
+                        setup_environment()
+                    build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT)
+                else:
+                    build_cmd_pipe = sp.Popen(cmd, stdout=sp.PIPE, stderr=sp.STDOUT, preexec_fn = setup_environment)
                 while True:
                     line = build_cmd_pipe.stdout.readline()
                     if not line: break
@@ -940,6 +954,9 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
                 if build_cmd_pipe.returncode:
                     ret = 'make fail for %s!. ret code: %d.'%(pkg, build_cmd_pipe.returncode)
                     break
+            if env_set:
+                env_set = False
+                unset_env(pkg_cfg[pkg]['env_var'])
     except BaseException as e:
         print(e)
         if not build_stop:
@@ -949,7 +966,9 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
     if build_stop:
         ret = 'break'
     build_stop = 0
-    os.chdir(current_dir)
+    if env_set:
+        env_set = False
+        unset_env(pkg_cfg[cur_package]['env_var'])
     return {'info' : ret, 'package' : cur_package}
 
 def guess_current_package(current_dir, config, arch):
