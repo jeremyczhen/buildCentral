@@ -18,6 +18,7 @@
         "OTHER_LIB_PATH"    : [],
         "STAGE_DIR"         : "",
         "SYSROOT"           : [],
+	"ENV_SOURCE_CMD"    : "cd $PROOT/../qcom_qnx/apps/qnx_ap && source ./setenv_64.sh --external $PROOT/../qnx-sdp",
         "ENV_VAR"           : {
         "QNX_HOST"          : "$PROOT/../../qnx-sdp/host/linux/x86_64",
         "QNX_TARGET"        : "$PROOT/../../qnx-sdp/target/qnx7"

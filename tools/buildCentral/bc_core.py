@@ -450,7 +450,12 @@ def load_build_config(cfg_dir, proj_root):
                         return config
 
                     root_pkg = []
-                    for pkg, degree in config['GROUPS'][arch][build]['GRAPH'].in_degree():
+                    #for pkg, degree in config['GROUPS'][arch][build]['GRAPH'].in_degree().items():
+                    try:
+                        in_degree = config['GROUPS'][arch][build]['GRAPH'].in_degree().items()
+                    except:
+                        in_degree = config['GROUPS'][arch][build]['GRAPH'].in_degree()
+                    for pkg, degree in in_degree:
                         if degree == 0:
                             root_pkg.append(pkg)
                     for pkg in root_pkg:
@@ -491,7 +496,8 @@ def load_env_from_source_file(source_file):
     command = shlex.split("bash -c ' " + source_file + " && env'")
     proc = sp.Popen(command, stdout = sp.PIPE)
     for line in proc.stdout:
-        (key, _, value) = line.partition("=")
+        line = str(line)
+        (key, _, value) = line.partition('=')
         env[key] = value.rstrip()
     proc.communicate()
     source_env_cache[source_file] = env
@@ -880,6 +886,7 @@ def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build,
         return {'info' : ret, 'package' : None}
 
     # ==== Build packages ====
+    env_set = False
     try:
         for pkg in packages:
             config_package_path(config, arch, pkg, variant)

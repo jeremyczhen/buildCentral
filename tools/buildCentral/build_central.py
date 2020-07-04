@@ -118,11 +118,14 @@ if args.list and not args.dep:
     print('=========================Packages===============================')
     for pkg in sort_package_list(package_graph):
         pkg_cfg = build_config['PACKAGES'][target_arch].get(pkg, None)
+        path = ''
         if pkg_cfg:
+            label = pkg_cfg.get('Label', '')
             path = os.path.normpath(os.path.join(build_config['proj_root'], pkg_cfg['Path']))
-            print('%-28s> %s'%(pkg, path))
         else:
-            print('%-28s'%(pkg))
+            label = 'Stand for All Packages'
+
+        print('%-16s%-20s %s'%(pkg, label, path))
     exit(0)
 
 arg_package_list = []
