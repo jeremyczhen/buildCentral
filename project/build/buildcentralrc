@@ -1,12 +1,12 @@
-{
-    "arm-qnx" : {
-        "TOOLCHAIN_CC"      : "$PROOT/../../qnx-sdp/host/linux/x86_64/usr/bin/qcc",
-        "TOOLCHAIN_CXX"     : "$PROOT/../../qnx-sdp/host/linux/x86_64/usr/bin/q++",
+{ "arm-qnx" : {
+        "TOOLCHAIN_CC"      : "$PROOT/../qnx-sdp/host/linux/x86_64/usr/bin/aarch64-unknown-nto-qnx7.0.0-gcc",
+        "TOOLCHAIN_CXX"     : "$PROOT/../qnx-sdp/host/linux/x86_64/usr/bin/aarch64-unknown-nto-qnx7.0.0-g++",
+        "TOOLCHAIN_FILE"    : "$PROOT/project/build/aarch64le-nto-toolchain.cmake",
         "COMPILER_TYPE"     : "GNU",
+        "C_FLAGS"           : "-march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong",
+        "CXX_FLAGS"         : "-march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong",
         "TARGET_ARCH"       : "arm",
         "TARGET_OS"         : "QNX",
-        "C_FLAGS"           : "-Vgcc_ntoaarch64 -Wc,-Wall -march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong -EL",
-        "CXX_FLAGS"         : "-Vgcc_ntoaarch64 -Wc,-Wall -march=armv8-a -mcpu=cortex-a57 -mtune=cortex-a57 -fstack-protector-strong -EL",
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
         "MACRO_DEF"         : {"__QNX__" : null},
@@ -14,14 +14,15 @@
         "EXE_LD_FLAGS"      : "",
         "LD_FLAGS"          : "",
         "ENV_VAR"           : [],
-        "OTHER_INC_PATH"    : [],
+        "OTHER_INC_PATH"    : ["$PROOT/../qcom_qnx/apps/qnx_ap/install/usr/include"],
         "OTHER_LIB_PATH"    : [],
-        "STAGE_DIR"         : "",
+        "MAKE_VAR"          : {"QNX_INTERFACE_DIR" : "$PROOT/../bosch-qnx/qnx_interfaces"},
+        "STAGE_DIR"         : "$PROOT/../qcom_qnx/apps/qnx_ap/install/aarch64le",
         "SYSROOT"           : [],
-	"ENV_SOURCE_CMD"    : "cd $PROOT/../qcom_qnx/apps/qnx_ap && source ./setenv_64.sh --external $PROOT/../qnx-sdp",
+        "ENV_SOURCE_CMD"    : "cd $PROOT/../qcom_qnx/apps/qnx_ap && source ./setenv_64.sh --external $PROOT/../qnx-sdp",
         "ENV_VAR"           : {
-        "QNX_HOST"          : "$PROOT/../../qnx-sdp/host/linux/x86_64",
-        "QNX_TARGET"        : "$PROOT/../../qnx-sdp/target/qnx7"
+            "QNX_HOST"      : "$PROOT/../qnx-sdp/host/linux/x86_64",
+            "QNX_TARGET"    : "$PROOT/../qnx-sdp/target/qnx7"
         }
     },
     "windows" : {

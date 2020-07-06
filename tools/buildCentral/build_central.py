@@ -32,10 +32,10 @@ parser.add_argument('-b', '--clean_build', help='always go along with -c: -cb me
 parser.add_argument('-l', '--list', help='list all packages', action='store_true')
 parser.add_argument('-e', '--exclusive', help='packages not specified for build', action='store_true')
 parser.add_argument('-t', '--target_arch', help='specify target arch. Use -l for details', default=None)
-parser.add_argument('-g', '--build_group', help='specify a group to build. Use -l for details', default=None)
+parser.add_argument('-r', '--build_variant', help='specify a group to build. Use -l for details', default=None)
 parser.add_argument('-a', '--dep', help='build with dependency', action='store_true')
 parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, default=0)
-parser.add_argument('-r', '--cmake_generator', help='specify a generator for cmake. Use -i for details', default=None)
+parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -i for details', default=None)
 parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
 parser.add_argument('-i', '--info', help='show information', action='store_true')
 parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
@@ -44,9 +44,9 @@ def show_info():
     print('================================================================')
     print('            Build Central version 1.0.1')
     print('Supported architectures: ' + ', '.join(build_config['TARGET_LIST']))
-    print('        Supported group: ' + ', '.join(build_config['BUILD_GROUPS']))
+    print('     Supported variants: ' + ','.join(build_config['BUILD_VARIANTS'][target_arch]['VARIANTS']))
     print('  Building architecture: ' + target_arch)
-    print('         Building group: ' + build_group)
+    print('       Building variant: ' + build_variant)
     print('             Stage path: ' + os.path.normpath(build_config['private'][target_arch]['stage_dir']))
     print('================================================================')
 
@@ -80,8 +80,8 @@ if not target_arch in build_config['TARGET_LIST']:
     print('Error: invalid target arch: %s'%(args.target_arch))
     exit(-1)
 
-if not target_arch in build_config['BUILD_GROUP_NAME']:
-    print('Error: arch %s is not defined in GROUPS tag!'%(target_arch))
+if not target_arch in build_config['BUILD_VARIANTS']:
+    print('Error: arch %s is not defined in BUILD_VARIANTS tag!'%(target_arch))
     exit(-1)
 
 def sort_package_list(pkgs):
@@ -97,18 +97,20 @@ def sort_package_list(pkgs):
         tmp_list.append(bcc.build_all_target)
     return tmp_list
 
-build_group = args.build_group
-if not build_group:
-    build_group = build_config['DEFAULT_GROUP']
-if not build_group in build_config['BUILD_GROUP_NAME'][target_arch]:
-    print('Error: variant %s is invalid for arch %s!'%(build_group, target_arch))
-    print('Available variant for arch %s are: '%(target_arch))
-    print(build_config['BUILD_GROUP_NAME'][target_arch])
+build_variant = args.build_variant
+if not build_variant:
+    build_variant = build_config['BUILD_VARIANTS'][target_arch]['DEFAULT_VARIANT']
+if not build_variant in build_config['BUILD_VARIANTS'][target_arch]['VARIANTS']:
+    print('Error: variant %s is invalid!'%(build_variant))
+    print('Available variant for arch %s: %s'%(target_arch,
+                             ','.join(build_config['BUILD_VARIANTS'][target_arch]['VARIANTS'])))
     exit(-1)
 
-package_graph = build_config['GROUPS'][target_arch][build_group]['GRAPH']
-if host_arch in build_config['GROUPS'] and build_group in build_config['GROUPS'][host_arch]:
-    tools_graph = build_config['GROUPS'][host_arch][build_group]['GRAPH']
+tools_variant = build_config['BUILD_VARIANTS'][host_arch]['DEFAULT_VARIANT']
+
+package_graph = build_config['BUILD_VARIANTS'][target_arch]['VARIANTS'][build_variant]['GRAPH']
+if host_arch in build_config['BUILD_VARIANTS']:
+    tools_graph = build_config['BUILD_VARIANTS'][host_arch]['VARIANTS'][tools_variant]['GRAPH']
 else:
     tools_graph = None
 
@@ -208,7 +210,7 @@ if args.dep:
 if args.info:
     retry_list = []
     for pkg in package_build_list:
-        installed = bcc.get_install_list(target_arch, pkg, build_config, build_group)
+        installed = bcc.get_install_list(target_arch, pkg, build_config, build_variant)
         if installed['info'] == 'retry':
             retry_list.append(pkg)
         elif installed['info'] == 'ok':
@@ -241,7 +243,7 @@ failure_package = ''
 if tools_build_list:
     ret = bcc.do_build_packages(tools_build_list,
                                host_arch,
-                               build_group,
+                               tools_variant,
                                args.debug,
                                args.verbose,
                                clean_type,
@@ -256,7 +258,7 @@ if tools_build_list:
 if ret is None or ret['info'] == 'ok':
     ret = bcc.do_build_packages(package_build_list,
                                target_arch,
-                               build_group,
+                               build_variant,
                                args.debug,
                                args.verbose,
                                clean_type,

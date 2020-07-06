@@ -63,36 +63,20 @@ def guess_project_root():
         cur_dir = cwd
     return cur_dir
 
-def do_import_build_variant(config, build_cfg, variant, build_list, arch):
-    if variant in build_list:
-        return
-    build_list[variant] = {'PACKAGES' : []}
+def do_import_build_group(group_name, group_config, packages):
+    if not group_name in group_config:
+        return 'Group %s is not found!'%(group_name)
+    group = group_config[group_name]
 
-    if not variant in build_cfg:
-        config['ret'] = 'group %s is not defined!'%(variant)
-        return
+    if 'BASE' in group:
+        for group_name in group['BASE']:
+            ret = do_import_build_group(group_name, group_config, packages)
+            if ret != 'ok':
+                return ret
 
-    if 'BASE' in build_cfg[variant]:
-        for base_variant in build_cfg[variant]['BASE']:
-            do_import_build_variant(config, build_cfg, base_variant, build_list, arch)
-            if config['ret'] != 'ok':
-                return
-            build_list[variant]['PACKAGES'] += build_list[base_variant]['PACKAGES']
-
-    if 'PACKAGES' in build_cfg[variant]:
-        for pkg in build_cfg[variant]['PACKAGES']:
-            if pkg in config['PACKAGES'][arch]:
-                build_list[variant]['PACKAGES'].append(pkg)
-            else:
-                config['ret'] = 'variant %s: package %s does not exists!'%(variant, pkg)
-                break
-
-def import_build_variant(config, build_cfg, arch):
-    build_list = {}
-    for variant in config['BUILD_GROUP_NAME'][arch]:
-        do_import_build_variant(config, build_cfg, variant, build_list, arch)
-
-    return build_list
+    if 'PACKAGES' in group:
+        packages['PKG'] = packages['PKG'] | set(group['PACKAGES'])
+    return 'ok'
 
 def init_private_config(config):
     config['private'] = {}
@@ -128,20 +112,18 @@ def init_private_config(config):
 def import_configs(dst, src):
     for item in src:
         src_value = src[item]
-        if not src_value:
-            continue
         if item == 'TOOLCHAIN':
-            dst['toolchain_root'] =  os.path.expanduser(src_value)
+            dst['toolchain_root'] =  os.path.normpath(os.path.expanduser(src_value))
         elif item == 'TOOLCHAIN_CC':
-            dst['c_compiler'] = os.path.expanduser(src_value)
+            dst['c_compiler'] = os.path.normpath(os.path.expanduser(src_value))
         elif item == 'TOOLCHAIN_CXX':
-            dst['cxx_compiler'] = os.path.expanduser(src_value)
+            dst['cxx_compiler'] = os.path.normpath(os.path.expanduser(src_value))
         elif item == 'TOOLCHAIN_ASM':
-            dst['asm_compiler'] = os.path.expanduser(src_value)
+            dst['asm_compiler'] = os.path.normpath(os.path.expanduser(src_value))
         elif item == 'TOOLCHAIN_AR':
-            dst['archiver'] = os.path.expanduser(src_value)
+            dst['archiver'] = os.path.normpath(os.path.expanduser(src_value))
         elif item == 'SYSROOT':
-            dst['sys_root'] =  [os.path.expanduser(x) for x in src_value]
+            dst['sys_root'] =  [os.path.normpath(os.path.expanduser(x)) for x in src_value]
         elif item == 'COMPILER_TYPE':
             dst['compiler_type'] = src_value
         elif item == 'TARGET_ARCH':
@@ -179,9 +161,9 @@ def import_configs(dst, src):
         elif item == 'EXE_LD_FLAGS':
             dst['exe_ld_flags'] += src_value + ' '
         elif item == 'OTHER_LIB_PATH':
-            dst['lib_search_path'] += [os.path.expanduser(x) for x in src_value]
+            dst['lib_search_path'] += [os.path.normpath(os.path.expanduser(x)) for x in src_value]
         elif item == 'OTHER_INC_PATH':
-            dst['head_search_path'] += [os.path.expanduser(x) for x in src_value]
+            dst['head_search_path'] += [os.path.normpath(os.path.expanduser(x)) for x in src_value]
         elif item == 'LD_FLAGS':
             dst['ld_flags'] += src_value + ' '
         elif item == 'ENV_VAR':
@@ -304,7 +286,7 @@ def load_build_config(cfg_dir, proj_root):
         template = Template(fd.read())
         fd.close()
         try:
-            cfg = json.loads(template.substitute(PROOT = proj_root.replace('\\', '/')))
+            origin_cfg = json.loads(template.substitute(PROOT = proj_root.replace('\\', '/')))
         except ValueError as e:
             config['ret'] = '%s: Config file %s is not in json format!'%(str(e), cfg_file)
             return config
@@ -312,41 +294,40 @@ def load_build_config(cfg_dir, proj_root):
         tmp = fd.read()
         fd.close()
         try:
-            cfg = json.loads(tmp)
+            origin_cfg = json.loads(tmp)
         except ValueError as e:
             config['ret'] = '%s: Config file %s is not in json format!'%(str(e), cfg_file)
             return config
         """
 
-        config['PROJECT_NAME'] = cfg.get('PROJECT_NAME', None)
-        config['LOGO'] = cfg.get('LOGO', None)
+        config['PROJECT_NAME'] = origin_cfg.get('PROJECT_NAME', None)
+        config['LOGO'] = origin_cfg.get('LOGO', None)
 
-        config['HOST'] = cfg.get('HOST', None)
-        if 'TARGETS' in cfg:
-            config['TARGET_LIST'] = cfg['TARGETS']
+        config['HOST'] = origin_cfg.get('HOST', None)
+        if 'TARGETS' in origin_cfg:
+            config['TARGET_LIST'] = origin_cfg['TARGETS']
         else:
             config['ret'] = 'TARGETS should be defined!'
             return config
-        if 'DEFAULT_TARGET' in cfg:
-            config['DEFAULT_TARGET'] = cfg['DEFAULT_TARGET']
+        if 'DEFAULT_TARGET' in origin_cfg:
+            config['DEFAULT_TARGET'] = origin_cfg['DEFAULT_TARGET']
             if not config['DEFAULT_TARGET'] in config['TARGET_LIST']:
                 config['ret'] = 'Invalid DEFAULT_TARGET!'
                 return config
         else:
             config['ret'] = 'DEFAULT_TARGET should be defined!'
             return config
-        if 'BUILD_GROUPS' in cfg:
-            config['BUILD_GROUPS'] = cfg['BUILD_GROUPS']
+        if 'BUILD_VARIANTS' in origin_cfg:
+            config['BUILD_VARIANTS'] = origin_cfg['BUILD_VARIANTS']
+            for arch in config['BUILD_VARIANTS']:
+                if not arch in config['TARGET_LIST']:
+                    config['ret'] = 'Error! arch %s in BUILD_VARIANTS is invalid!'%(arch)
+                    return config
+                if not config['BUILD_VARIANTS'][arch]["DEFAULT_VARIANT"] in config['BUILD_VARIANTS'][arch]["VARIANTS"]:
+                    config['ret'] = 'Error! DEFAULT_VARIANT for %s is not found in BUILD_VARIANTS.arch.VARIANTS'%(arch)
+                    return config
         else:
-            config['ret'] = 'BUILD_GROUPS should be defined!'
-            return config
-        if 'DEFAULT_GROUP' in cfg:
-            config['DEFAULT_GROUP'] = cfg['DEFAULT_GROUP']
-            if not config['DEFAULT_GROUP'] in config['BUILD_GROUPS']:
-                config['ret'] = 'Invalid DEFAULT_GROUP!'
-                return config
-        else:
-            config['ret'] = 'DEFAULT_GROUP should be defined!'
+            config['ret'] = 'BUILD_VARIANTS should be defined!'
             return config
 
         ret = import_private_config(config)
@@ -358,34 +339,34 @@ def load_build_config(cfg_dir, proj_root):
         config['LOG_DIR'] = os.path.join(config['OUTPUT_DIR'], 'log')
 
         config['PACKAGES'] = {}
-        if 'PACKAGES'in cfg:
+        if 'PACKAGES'in origin_cfg:
             for arch in config['TARGET_LIST']:
-                config['PACKAGES'][arch] = copy.deepcopy(cfg['PACKAGES'])
+                config['PACKAGES'][arch] = copy.deepcopy(origin_cfg['PACKAGES'])
         else:
             for arch in config['TARGET_LIST']:
                 config['PACKAGES'][arch] = {}
 
-        if 'PACKAGES-PER-ARCH'in cfg:
+        if 'PACKAGES-PER-ARCH'in origin_cfg:
             config['PACKAGES-PER-ARCH'] = {} 
-            for arch in cfg['PACKAGES-PER-ARCH']:
+            for arch in origin_cfg['PACKAGES-PER-ARCH']:
                 if not arch in config['TARGET_LIST']:
                     config['ret'] = 'Error! arch %s in PACKAGES-PER-ARCH tag is invalid!'%(arch)
                     return config
-                config['PACKAGES-PER-ARCH'][arch] = copy.deepcopy(cfg['PACKAGES-PER-ARCH'][arch])
-                for pkg in cfg['PACKAGES-PER-ARCH'][arch]:
+                config['PACKAGES-PER-ARCH'][arch] = copy.deepcopy(origin_cfg['PACKAGES-PER-ARCH'][arch])
+                for pkg in origin_cfg['PACKAGES-PER-ARCH'][arch]:
                     if not pkg in config['PACKAGES'][arch]:
                         config['PACKAGES'][arch][pkg] = {}
 
-                    path = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Path', None)
+                    path = origin_cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Path', None)
                     if not path is None:
                         config['PACKAGES'][arch][pkg]['Path'] = path
-                    dep = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
+                    dep = origin_cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Dependency', None)
                     if not dep is None:
                         config['PACKAGES'][arch][pkg]['Dependency'] = list(set(dep))
-                    target = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('MakeTarget', None)
+                    target = origin_cfg['PACKAGES-PER-ARCH'][arch][pkg].get('MakeTarget', None)
                     if not target is None:
                         config['PACKAGES'][arch][pkg]['MakeTarget'] = target 
-                    tools = cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Tools', None)
+                    tools = origin_cfg['PACKAGES-PER-ARCH'][arch][pkg].get('Tools', None)
                     if not tools is None:
                         config['PACKAGES'][arch][pkg]['Tools'] = tools
 
@@ -394,76 +375,66 @@ def load_build_config(cfg_dir, proj_root):
                 if 'Tools' in config['PACKAGES'][arch][pkg]:
                     config['PACKAGES'][arch][pkg]['Tools'] = set(config['PACKAGES'][arch][pkg]['Tools'])
 
-        config['GROUPS'] = {}
-        config['BUILD_GROUP_NAME'] = {}
-        if 'GROUPS' in cfg:
-            for arch in cfg['GROUPS']:
-                if not arch in config['TARGET_LIST']:
-                    config['ret'] = 'Arch %s is invalid for GROUPS in %s!'%(arch, cfg_file)
-                    return config
+        for arch in config['BUILD_VARIANTS']:
+            for variant in config['BUILD_VARIANTS'][arch]['VARIANTS']:
+                packages = {'PKG' : set()}
+                for group_name in config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GROUPS']:
+                    ret = do_import_build_group(group_name, origin_cfg['GROUPS'], packages)
+                    if ret != 'ok':
+                        config['ret'] = 'Error parsing BUILD_VARIANTS.%s.VARIANTS.%s: %s'%(arch, variant, ret)
+                        return config
+                package_list = packages['PKG']
+                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'] = list(package_list)
 
-                config['BUILD_GROUP_NAME'][arch] = []
-                for group in cfg['GROUPS'][arch]:
-                    if group in config['BUILD_GROUPS']:
-                        config['BUILD_GROUP_NAME'][arch] += [group]
-
-                if not config['DEFAULT_GROUP'] in cfg['GROUPS'][arch]:
-                    config['ret'] = 'Default variant %s defined by DEFAULT_GROUP is not in arch %s!'%(config['DEFAULT_GROUP'], arch)
-                    return config
-                config['GROUPS'][arch] = import_build_variant(config, cfg['GROUPS'][arch], arch)
-                if config['ret'] != 'ok':
-                    config['ret'] = 'Error! Arch %s, '%(arch) + config['ret']
-                    return config
-
-                for build in config['BUILD_GROUP_NAME'][arch]:
-                    config['GROUPS'][arch][build]['GRAPH'] = nx.DiGraph()
-
-                    for pkg in config['GROUPS'][arch][build]['PACKAGES']:
-                        if not pkg in config['PACKAGES'][arch]:
-                            config['ret'] = 'Arch: %s, variant %s: Package %s is not defined in PACKAGE in file %s!'%(arch, build, pkg, cfg_file)
-                            return config
-
-                        if 'Tools' in config['PACKAGES'][arch][pkg]:
-                            for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
-                                if not dep_pkg in config['PACKAGES'][host_arch]:
-                                    config['ret'] = 'Arch: %s, variant %s, Tool %s is not defined for host %s in file %s!'%(arch, build, dep_pkg, host_arch, cfg_file)
-                                    return config
-
-                        if 'Dependency' in config['PACKAGES'][arch][pkg]:
-                            for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
-                                if not dep_pkg in config['PACKAGES'][arch]:
-                                    config['ret'] = 'Arch: %s, variant %s, Package %s is not defined in Dependency in file %s!'%(arch, build, dep_pkg, cfg_file)
-                                    return config
-                                config['GROUPS'][arch][build]['GRAPH'].add_edge(pkg, dep_pkg)
-
-                    for pkg in config['GROUPS'][arch][build]['GRAPH']:
-                        if not pkg in config['GROUPS'][arch][build]['PACKAGES']:
-                            #print('File %s, arch %s, variant %s: package %s is depended but not list for build!'%(cfg_file, arch, build, pkg))
-                            pass
-
-                    loop_str = ''
-                    for loop in nx.simple_cycles(config['GROUPS'][arch][build]['GRAPH']):
-                        loop_str += str(loop) + ', '
-
-                    if loop_str:
-                        config['ret'] = 'File %s, arch %s, variant %s: Loop dependency is found: %s!'%(cfg_file, arch, build, str(loop))
+                graph =  nx.DiGraph()
+                for pkg in package_list:
+                    if not pkg in config['PACKAGES'][arch]:
+                        config['ret'] = 'Arch: %s: Package %s is not defined in PACKAGE in file %s!'%(arch, pkg, cfg_file)
                         return config
 
-                    root_pkg = []
-                    #for pkg, degree in config['GROUPS'][arch][build]['GRAPH'].in_degree().items():
-                    try:
-                        in_degree = config['GROUPS'][arch][build]['GRAPH'].in_degree().items()
-                    except:
-                        in_degree = config['GROUPS'][arch][build]['GRAPH'].in_degree()
-                    for pkg, degree in in_degree:
-                        if degree == 0:
-                            root_pkg.append(pkg)
-                    for pkg in root_pkg:
-                        config['GROUPS'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
+                    if 'Tools' in config['PACKAGES'][arch][pkg]:
+                        for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
+                            if not dep_pkg in config['PACKAGES'][host_arch]:
+                                config['ret'] = 'Arch: %s, Tool %s is not defined for host %s in file %s!'%(arch, dep_pkg, host_arch, cfg_file)
+                                return config
 
-                    for pkg in config['GROUPS'][arch][build]['PACKAGES']:
-                        if not pkg in config['GROUPS'][arch][build]['GRAPH']:
-                            config['GROUPS'][arch][build]['GRAPH'].add_edge(build_all_target, pkg)
+                    if 'Dependency' in config['PACKAGES'][arch][pkg]:
+                        for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
+                            if not dep_pkg in config['PACKAGES'][arch]:
+                                config['ret'] = 'Arch: %s, Package %s is not defined in Dependency in file %s!'%(arch, dep_pkg, cfg_file)
+                                return config
+                            graph.add_edge(pkg, dep_pkg)
+
+                #for pkg in graph:
+                #    if not pkg in origin_cfg['GROUPS'][arch][group]['PACKAGES']:
+                        #print('File %s, arch %s, Group %s: package %s is depended but not list for build!'%(cfg_file, arch, group, pkg))
+                #        pass
+
+                loop_str = ''
+                for loop in nx.simple_cycles(graph):
+                    loop_str += str(loop) + ', '
+
+                if loop_str:
+                    config['ret'] = 'File %s, arch %s: Loop dependency is found: %s!'%(cfg_file, arch, str(loop))
+                    return config
+
+                root_pkg = []
+                #for pkg, degree in graph.in_degree().items():
+                try:
+                    in_degree = graph.in_degree().items()
+                except:
+                    in_degree = graph.in_degree()
+                for pkg, degree in in_degree:
+                    if degree == 0:
+                        root_pkg.append(pkg)
+                for pkg in root_pkg:
+                    graph.add_edge(build_all_target, pkg)
+
+                for pkg in package_list:
+                    if not pkg in graph:
+                        graph.add_edge(build_all_target, pkg)
+
+                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GRAPH'] = graph
 
     host_stage_dir = os.path.join(config['OUTPUT_DIR'], 'stage', config['HOST'])
     config['tool_path'] = (os.path.join(config['proj_root'], 'tools', 'bin', config['os_type']),
@@ -600,7 +571,7 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
                 m = [i + '=' + macro_var[i] if macro_var[i] else i for i in macro_var]
                 add_definition(cmd, 'MACRO_DEF', ';'.join(m))
 
-            build_macro = config['BUILD_GROUPS'][variant].get('MACRO', None)
+            build_macro = config['BUILD_VARIANTS'][arch]['VARIANTS'][variant].get('MACRO', None)
             if build_macro:
                 add_definition(cmd, 'MACRO_VARIANT', build_macro)
 
@@ -676,16 +647,16 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
         cflags = ''
         cxxflags = ''
         if sys_root:
-            pathes = ['-I' + os.path.expanduser(os.path.join(p, 'include')) for p in sys_root]
+            pathes = ['-I' + os.path.normpath(os.path.expanduser(os.path.join(p, 'include'))) for p in sys_root]
             inc_path = ' '.join(pathes)
             cflags += ' ' + inc_path
             cxxflags += ' ' + inc_path
-            pathes = ['-I' + os.path.expanduser(os.path.join(p, 'usr', 'include')) for p in sys_root]
+            pathes = ['-I' + os.path.normpath(os.path.expanduser(os.path.join(p, 'usr', 'include'))) for p in sys_root]
             inc_path = ' '.join(pathes)
             cflags += ' ' + inc_path
             cxxflags += ' ' + inc_path
         if head_pathes:
-            pathes = ['-I' + os.path.expanduser(p) for p in head_pathes]
+            pathes = ['-I' + os.path.normpath(os.path.expanduser(p)) for p in head_pathes]
             inc_path = ' '.join(pathes)
             cflags += ' ' + inc_path
             cxxflags += ' ' + inc_path
@@ -702,12 +673,12 @@ def create_build_command(package, arch, variant, debug, verbose, stage, nr_jobs,
 
         ldflags = ''
         if sys_root:
-            pathes = ['-L' + os.path.expanduser(os.path.join(p, 'lib')) for p in sys_root]
+            pathes = ['-L' + os.path.normpath(os.path.expanduser(os.path.join(p, 'lib'))) for p in sys_root]
             ldflags = ' ' + ' '.join(pathes) 
-            pathes = ['-L' + os.path.expanduser(os.path.join(p, 'usr', 'lib')) for p in sys_root]
+            pathes = ['-L' + os.path.normpath(os.path.expanduser(os.path.join(p, 'usr', 'lib'))) for p in sys_root]
             ldflags = ' ' + ' '.join(pathes) 
         if lib_pathes:
-            pathes = ['-L' + os.path.expanduser(p) for p in lib_pathes]
+            pathes = ['-L' + os.path.normpath(os.path.expanduser(p)) for p in lib_pathes]
             ldflags = ' ' + ' '.join(pathes)
         if private_config['ld_flags']:
             ldflags += ' ' + private_config['ld_flags']
@@ -772,6 +743,9 @@ def unset_env(env_list):
 def do_build_packages(packages, arch, variant, debug, verbose, clean, not_build, nr_jobs, generator, config, output):
     global build_stop
     global build_cmd_pipe
+
+    if not variant:
+        variant = config['BUILD_VARIANTS'][arch]['DEFAULT_VARIANT']
 
     if not nr_jobs:
         nr_jobs = multiprocessing.cpu_count()

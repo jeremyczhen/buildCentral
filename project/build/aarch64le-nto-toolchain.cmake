@@ -1,0 +1,19 @@
+set(CMAKE_SYSTEM_NAME QNX)
+
+set(arch gcc_ntoaarch64le)
+set(ntoarch aarch64le)
+set(QNX_PROCESSOR aarch64le)
+
+set(CMAKE_SYSTEM_PROCESSOR aarch64le)
+
+if(DEFINED ENV{C_COMPILER})
+    SET(CMAKE_C_COMPILER $ENV{C_COMPILER})
+endif()
+set(CMAKE_C_COMPILER_TARGET ${arch})
+
+if(DEFINED ENV{CXX_COMPILER})
+    SET(CMAKE_CXX_COMPILER $ENV{CXX_COMPILER})
+endif()
+set(CMAKE_CXX_COMPILER_TARGET ${arch})
+
+set(CMAKE_ASM_COMPILER qcc -V{arch})
