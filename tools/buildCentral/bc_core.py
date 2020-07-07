@@ -212,7 +212,7 @@ def import_private_config(config):
              # project specific config
              os.path.join(config['proj_root'], 'project', 'build', 'buildcentralrc'),
              # private config
-             os.path.join('~', '.build_central')
+             os.path.join(os.path.expanduser('~'), '.buildcentralrc')
             ]
 
     for cfg_file in files:
