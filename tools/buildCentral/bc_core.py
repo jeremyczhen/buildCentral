@@ -251,6 +251,25 @@ def config_package_path(config, arch, pkg, variant):
         else:
             config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', variant, arch)
 
+'''
+def parse_build_order(package_list, graphs):
+    ordered_packages = []
+    for i in range(len(package_list)):
+        packages = package_list[i]
+        graph = graphs[i]
+        dep_list = []
+        for package in packages:
+            generate_build_order(graph, package, dep_list)
+        ordered_packages.append(dep_list)
+
+    pkg_set = set(ordered_packages)
+    if build_all_target in ordered_packages:
+        ordered_packages.remove(build_all_target)
+    ordered_packages = list(ordered_packages)
+    ordered_packages.append(build_all_target)
+    return ordered_packages
+'''
+
 def load_build_config(cfg_dir, proj_root):
     config = {'ret' : 'ok'}
     if not proj_root:
@@ -335,7 +354,8 @@ def load_build_config(cfg_dir, proj_root):
             config['ret'] = ret['info']
             return config
 
-        config['OUTPUT_DIR'] = os.path.join(proj_root, 'output')
+        config['OUTPUT_DIR'] = os.path.normpath(os.path.expanduser(
+                               origin_cfg.get('OUTPUT_DIR', os.path.join(proj_root, 'output'))))
         config['LOG_DIR'] = os.path.join(config['OUTPUT_DIR'], 'log')
 
         config['PACKAGES'] = {}
@@ -377,64 +397,66 @@ def load_build_config(cfg_dir, proj_root):
 
         for arch in config['BUILD_VARIANTS']:
             for variant in config['BUILD_VARIANTS'][arch]['VARIANTS']:
-                packages = {'PKG' : set()}
+                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GRAPHS'] = []
+                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'] = []
                 for group_name in config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GROUPS']:
+                    packages = {'PKG' : set()}
                     ret = do_import_build_group(group_name, origin_cfg['GROUPS'], packages)
                     if ret != 'ok':
                         config['ret'] = 'Error parsing BUILD_VARIANTS.%s.VARIANTS.%s: %s'%(arch, variant, ret)
                         return config
-                package_list = packages['PKG']
-                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'] = list(package_list)
+                    package_list = packages['PKG']
+                    config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'].append(list(package_list))
 
-                graph =  nx.DiGraph()
-                for pkg in package_list:
-                    if not pkg in config['PACKAGES'][arch]:
-                        config['ret'] = 'Arch: %s: Package %s is not defined in PACKAGE in file %s!'%(arch, pkg, cfg_file)
+                    graph =  nx.DiGraph()
+                    for pkg in package_list:
+                        if not pkg in config['PACKAGES'][arch]:
+                            config['ret'] = 'Arch: %s: Package %s is not defined in PACKAGE in file %s!'%(arch, pkg, cfg_file)
+                            return config
+
+                        if 'Tools' in config['PACKAGES'][arch][pkg]:
+                            for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
+                                if not dep_pkg in config['PACKAGES'][host_arch]:
+                                    config['ret'] = 'Arch: %s, Tool %s is not defined for host %s in file %s!'%(arch, dep_pkg, host_arch, cfg_file)
+                                    return config
+
+                        if 'Dependency' in config['PACKAGES'][arch][pkg]:
+                            for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
+                                if not dep_pkg in config['PACKAGES'][arch]:
+                                    config['ret'] = 'Arch: %s, Package %s is not defined in Dependency in file %s!'%(arch, dep_pkg, cfg_file)
+                                    return config
+                                graph.add_edge(pkg, dep_pkg)
+
+                    #for pkg in graph:
+                    #    if not pkg in origin_cfg['GROUPS'][arch][group]['PACKAGES']:
+                    #        print('File %s, arch %s, Group %s: package %s is depended but not list for build!'%(cfg_file, arch, group, pkg))
+                    #        pass
+
+                    loop_str = ''
+                    for loop in nx.simple_cycles(graph):
+                        loop_str += str(loop) + ', '
+
+                    if loop_str:
+                        config['ret'] = 'File %s, arch %s: Loop dependency is found: %s!'%(cfg_file, arch, str(loop))
                         return config
 
-                    if 'Tools' in config['PACKAGES'][arch][pkg]:
-                        for dep_pkg in config['PACKAGES'][arch][pkg]['Tools']:
-                            if not dep_pkg in config['PACKAGES'][host_arch]:
-                                config['ret'] = 'Arch: %s, Tool %s is not defined for host %s in file %s!'%(arch, dep_pkg, host_arch, cfg_file)
-                                return config
-
-                    if 'Dependency' in config['PACKAGES'][arch][pkg]:
-                        for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
-                            if not dep_pkg in config['PACKAGES'][arch]:
-                                config['ret'] = 'Arch: %s, Package %s is not defined in Dependency in file %s!'%(arch, dep_pkg, cfg_file)
-                                return config
-                            graph.add_edge(pkg, dep_pkg)
-
-                #for pkg in graph:
-                #    if not pkg in origin_cfg['GROUPS'][arch][group]['PACKAGES']:
-                        #print('File %s, arch %s, Group %s: package %s is depended but not list for build!'%(cfg_file, arch, group, pkg))
-                #        pass
-
-                loop_str = ''
-                for loop in nx.simple_cycles(graph):
-                    loop_str += str(loop) + ', '
-
-                if loop_str:
-                    config['ret'] = 'File %s, arch %s: Loop dependency is found: %s!'%(cfg_file, arch, str(loop))
-                    return config
-
-                root_pkg = []
-                #for pkg, degree in graph.in_degree().items():
-                try:
-                    in_degree = graph.in_degree().items()
-                except:
-                    in_degree = graph.in_degree()
-                for pkg, degree in in_degree:
-                    if degree == 0:
-                        root_pkg.append(pkg)
-                for pkg in root_pkg:
-                    graph.add_edge(build_all_target, pkg)
-
-                for pkg in package_list:
-                    if not pkg in graph:
+                    root_pkg = []
+                    #for pkg, degree in graph.in_degree().items():
+                    try:
+                        in_degree = graph.in_degree().items()
+                    except:
+                        in_degree = graph.in_degree()
+                    for pkg, degree in in_degree:
+                        if degree == 0:
+                            root_pkg.append(pkg)
+                    for pkg in root_pkg:
                         graph.add_edge(build_all_target, pkg)
 
-                config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GRAPH'] = graph
+                    for pkg in package_list:
+                        if not pkg in graph:
+                            graph.add_edge(build_all_target, pkg)
+
+                    config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GRAPHS'].append(graph)
 
     host_stage_dir = os.path.join(config['OUTPUT_DIR'], 'stage', config['HOST'])
     config['tool_path'] = (os.path.join(config['proj_root'], 'tools', 'bin', config['os_type']),
@@ -716,10 +738,32 @@ def figure_out_build_order(G, package, build_list):
     for neighbor in G.neighbors(package):
         figure_out_build_order(G, neighbor, build_list)
 
-def generate_build_order(G, package, build_list):
+def generate_build_order_for_single_graph(G, package, build_list):
     if not package in build_list:
         build_list.append(package)
         figure_out_build_order(G, package, build_list)
+
+def generate_all_build_order(graphs, build_list):
+    ordered_packages = []
+    for graph in graphs:
+        bp = []
+        generate_build_order_for_single_graph(graph, build_all_target, bp)
+        bp.reverse()
+        [ordered_packages.append(i) for i in bp if not i in ordered_packages]
+ 
+    ordered_packages.reverse()
+    if build_all_target in ordered_packages:
+        ordered_packages.remove(build_all_target)
+    [build_list.append(i) for i in ordered_packages if not i in build_list]
+
+def generate_build_order(graphs, package, build_list):
+    if package == build_all_target:
+        generate_all_build_order(graphs, build_list)
+    else:
+        for graph in graphs:
+            if not package in graph:
+                continue
+            generate_build_order_for_single_graph(graph, package, build_list)
 
 def get_tools(config, arch, packages):
     tools = set()

@@ -48,6 +48,7 @@ def show_info():
     print('  Building architecture: ' + target_arch)
     print('       Building variant: ' + build_variant)
     print('             Stage path: ' + os.path.normpath(build_config['private'][target_arch]['stage_dir']))
+    print('            Output path: ' + os.path.normpath(build_config['OUTPUT_DIR']))
     print('================================================================')
 
 def show_generator():
@@ -84,14 +85,17 @@ if not target_arch in build_config['BUILD_VARIANTS']:
     print('Error: arch %s is not defined in BUILD_VARIANTS tag!'%(target_arch))
     exit(-1)
 
-def sort_package_list(pkgs):
+def sort_package_list(pkg_list):
     tmp_list = []
     all_target_found = False 
-    for pkg in pkgs:
-        if pkg != bcc.build_all_target:
-            tmp_list.append(pkg)
-        else:
-            all_target_found = True 
+    for pkgs in pkg_list:
+        for pkg in pkgs:
+            if pkg != bcc.build_all_target:
+                tmp_list.append(pkg)
+            else:
+                all_target_found = True 
+    tmp_set = set(tmp_list)
+    tmp_list = list(tmp_set)
     tmp_list.sort()
     if all_target_found:
         tmp_list.append(bcc.build_all_target)
@@ -108,17 +112,19 @@ if not build_variant in build_config['BUILD_VARIANTS'][target_arch]['VARIANTS']:
 
 tools_variant = build_config['BUILD_VARIANTS'][host_arch]['DEFAULT_VARIANT']
 
-package_graph = build_config['BUILD_VARIANTS'][target_arch]['VARIANTS'][build_variant]['GRAPH']
+package_graphs = build_config['BUILD_VARIANTS'][target_arch]['VARIANTS'][build_variant]['GRAPHS']
+sorted_packages = sort_package_list(package_graphs)
 if host_arch in build_config['BUILD_VARIANTS']:
-    tools_graph = build_config['BUILD_VARIANTS'][host_arch]['VARIANTS'][tools_variant]['GRAPH']
+    tools_graphs = build_config['BUILD_VARIANTS'][host_arch]['VARIANTS'][tools_variant]['GRAPHS']
 else:
-    tools_graph = None
+    tools_graphs = None
 
 # -l without -a
 if args.list and not args.dep:
     show_info()
     print('=========================Packages===============================')
-    for pkg in sort_package_list(package_graph):
+    print('| %-16s| %-20s| %s'%('Package Name', 'Description', 'Source Dir'))
+    for pkg in sorted_packages:
         pkg_cfg = build_config['PACKAGES'][target_arch].get(pkg, None)
         path = ''
         if pkg_cfg:
@@ -127,7 +133,7 @@ if args.list and not args.dep:
         else:
             label = 'Stand for All Packages'
 
-        print('%-16s%-20s %s'%(pkg, label, path))
+        print('| %-16s| %-20s| %s'%(pkg, label, path))
     exit(0)
 
 arg_package_list = []
@@ -137,10 +143,10 @@ else:
     arg_package_list += bcc.guess_current_package(os.getcwd(), build_config, target_arch)
 
 for pkg in arg_package_list:
-    if not pkg in package_graph:
+    if not pkg in sorted_packages:
         if args.packages:
             print('==== Invalid package %s for %s! Please select packages from the following: ===='%(pkg, target_arch))
-            for pkg in sort_package_list(package_graph):
+            for pkg in sorted_packages:
                 print(pkg)
             exit(-1)
         else:
@@ -153,7 +159,7 @@ if args.exclusive:
         if bcc.build_all_target in arg_package_list:
             print('Error! -e option should specify package %s!'%(bcc.build_all_target))
             exit(-1)
-        for pkg in package_graph:
+        for pkg in ordered_packages:
             if not pkg in arg_package_list and pkg != bcc.build_all_target:
                 package_list.append(pkg)
     else:
@@ -173,15 +179,15 @@ if args.list and args.dep:
     for pkg in package_list:
         print(pkg)
         dep_list = []
-        bcc.generate_build_order(package_graph, pkg, dep_list)
+        bcc.generate_build_order(package_graphs, pkg, dep_list)
         dep_list.reverse()
 
         tools = []
-        if tools_graph:
+        if tools_graphs:
             tools = bcc.get_tools(build_config, target_arch, dep_list)
             tools_dep_list = []
             for tool in tools:
-                bcc.generate_build_order(tools_graph, tool, tools_dep_list)
+                bcc.generate_build_order(tools_graphs, tool, tools_dep_list)
             tools_dep_list.reverse()
 
         for tool in tools_dep_list:
@@ -192,7 +198,7 @@ if args.list and args.dep:
 
 dep_list = []
 for pkg in package_list:
-    bcc.generate_build_order(package_graph, pkg, dep_list)
+    bcc.generate_build_order(package_graphs, pkg, dep_list)
 dep_list.reverse()
 if args.dep:
     package_build_list = dep_list
@@ -201,10 +207,10 @@ else:
 
 tools_build_list = []
 if args.dep:
-    if tools_graph:
+    if tools_graphs:
         tools = bcc.get_tools(build_config, target_arch, package_build_list)
         for tool in tools:
-            bcc.generate_build_order(tools_graph, tool, tools_build_list)
+            bcc.generate_build_order(tools_graphs, tool, tools_build_list)
         tools_build_list.reverse()
 
 if args.info:
@@ -292,6 +298,7 @@ else:
     print('\n' + ret['info'])
 
 print('\nLog file: ' + os.path.join(build_config['LOG_DIR'], target_arch, 'log'))
+print('Output dir: ' + build_config['OUTPUT_DIR'] + '\n')
 
 if ret['info'] == 'ok':
     exit(0)
