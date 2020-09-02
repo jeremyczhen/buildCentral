@@ -190,6 +190,9 @@ if args.list and args.dep:
                 bcc.generate_build_order(tools_graphs, tool, tools_dep_list)
             tools_dep_list.reverse()
 
+        if target_arch == host_arch:
+            dep_list = [pkg for pkg in dep_list if not pkg in tools_dep_list]
+
         for tool in tools_dep_list:
             print('    ' + tool + '(host)')
         for pkg in dep_list:
@@ -259,6 +262,9 @@ if tools_build_list:
                                do_print)
     if ret['info'] != 'ok':
         failure_package = ret['package'] + '(host)'
+
+if target_arch == host_arch:
+    package_build_list = [pkg for pkg in package_build_list if not pkg in tools_build_list]
 
 if ret is None or ret['info'] == 'ok':
     ret = bcc.do_build_packages(package_build_list,
