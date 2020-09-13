@@ -232,6 +232,19 @@ def arch_is_host(arch, config):
     else:
         return False
 
+def get_stage_path(config, arch, variant, output_dir = None):
+    if not output_dir:
+        output_dir = config.get('OUTPUT_DIR', '')
+    if config['private'][arch]['stage_dir']:
+        path = config['private'][arch]['stage_dir']
+    else:
+        if arch_is_host(arch, config):
+            # no variant for host build
+            path = os.path.join(output_dir, 'stage', config['HOST'])
+        else:
+            path = os.path.join(output_dir, 'stage', variant, arch)
+    return path
+
 def config_package_path(config, arch, pkg, variant):
     src_path = os.path.abspath(os.path.join(config['proj_root'], config['PACKAGES'][arch][pkg]['Path']))
     output_dir = config.get('OUTPUT_DIR', src_path)
@@ -242,14 +255,7 @@ def config_package_path(config, arch, pkg, variant):
         config['PACKAGES'][arch][pkg]['Path'] = src_path
 
     config['PACKAGES'][arch][pkg]['BuildDir'] = os.path.join(output_dir, 'build', variant, pkg, arch)
-    if config['private'][arch]['stage_dir']:
-        config['PACKAGES'][arch][pkg]['StageDir'] = config['private'][arch]['stage_dir']
-    else:
-        if arch_is_host(arch, config):
-            # no variant for host build
-            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', config['HOST'])
-        else:
-            config['PACKAGES'][arch][pkg]['StageDir'] = os.path.join(output_dir, 'stage', variant, arch)
+    config['PACKAGES'][arch][pkg]['StageDir'] = get_stage_path(config, arch, variant, output_dir)
 
 '''
 def parse_build_order(package_list, graphs):

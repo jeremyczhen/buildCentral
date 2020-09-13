@@ -47,7 +47,7 @@ def show_info():
     print('     Supported variants: ' + ','.join(build_config['BUILD_VARIANTS'][target_arch]['VARIANTS']))
     print('  Building architecture: ' + target_arch)
     print('       Building variant: ' + build_variant)
-    print('             Stage path: ' + os.path.normpath(build_config['private'][target_arch]['stage_dir']))
+    print('             Stage path: ' + os.path.normpath(bcc.get_stage_path(build_config, target_arch, build_variant)))
     print('            Output path: ' + os.path.normpath(build_config['OUTPUT_DIR']))
     print('================================================================')
 
