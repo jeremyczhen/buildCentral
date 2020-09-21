@@ -405,13 +405,23 @@ def load_build_config(cfg_dir, proj_root):
             for variant in config['BUILD_VARIANTS'][arch]['VARIANTS']:
                 config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GRAPHS'] = []
                 config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'] = []
+
                 for group_name in config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['GROUPS']:
                     packages = {'PKG' : set()}
                     ret = do_import_build_group(group_name, origin_cfg['GROUPS'], packages)
                     if ret != 'ok':
                         config['ret'] = 'Error parsing BUILD_VARIANTS.%s.VARIANTS.%s: %s'%(arch, variant, ret)
                         return config
+
                     package_list = packages['PKG']
+                    for pkg in list(package_list):
+                        if 'Tools' in config['PACKAGES'][arch][pkg]:
+                            if arch_is_host(arch, config) and pkg != dep_pkg:
+                                package_list |= set(config['PACKAGES'][arch][pkg]['Tools'])
+
+                        if 'Dependency' in config['PACKAGES'][arch][pkg]:
+                            package_list |= set(config['PACKAGES'][arch][pkg]['Dependency'])
+
                     config['BUILD_VARIANTS'][arch]['VARIANTS'][variant]['PACKAGES'].append(list(package_list))
 
                     graph =  nx.DiGraph()
@@ -425,6 +435,8 @@ def load_build_config(cfg_dir, proj_root):
                                 if not dep_pkg in config['PACKAGES'][host_arch]:
                                     config['ret'] = 'Arch: %s, Tool %s is not defined for host %s in file %s!'%(arch, dep_pkg, host_arch, cfg_file)
                                     return config
+                                if arch_is_host(arch, config) and pkg != dep_pkg:
+                                    graph.add_edge(pkg, dep_pkg)
 
                         if 'Dependency' in config['PACKAGES'][arch][pkg]:
                             for dep_pkg in config['PACKAGES'][arch][pkg]['Dependency']:
