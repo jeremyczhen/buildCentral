@@ -1054,7 +1054,12 @@ def get_install_list(arch, package, config, variant):
         file_list.sort()
         return {'info' : 'ok', 'files' : file_list}
 
-def launch_dlt(config):
-    dlt_viewer_path = config['proj_root'] + '/tools/dlt-viewer'
-    cmd = 'LD_LIBRARY_PATH=' + dlt_viewer_path + ' ' + dlt_viewer_path + '/dlt_viewer > /dev/null 2>&1 &'
-    os.system(cmd)
+def draw_graphic(graphs):
+    import matplotlib.pyplot as plt
+    graph_id = 0
+    for graph in graphs:
+        graph.remove_node(build_all_target)
+        plt.figure(figsize=(48,27))
+        nx.draw_circular(graph, with_labels=True, edge_color='b', node_color='r', node_size=1000, alpha=0.8)
+        plt.show()
+        plt.savefig('./package-graphic-' + str(graph_id) + '.png')

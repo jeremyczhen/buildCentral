@@ -38,6 +38,7 @@ parser.add_argument('-j', '--jobs', help='Number of jobs for make', type=int, de
 parser.add_argument('-g', '--cmake_generator', help='specify a generator for cmake. Use -i for details', default=None)
 parser.add_argument('-D', '--extra_make_var', help='specify extra (c)make variables separated by ","', default=None)
 parser.add_argument('-i', '--info', help='show information', action='store_true')
+parser.add_argument('-p', '--plot', help='plot graphic diagram', action='store_true')
 parser.add_argument('packages', help='packages to be built; separated by ","', nargs='?')
 
 def show_info():
@@ -118,6 +119,10 @@ if host_arch in build_config['BUILD_VARIANTS']:
     tools_graphs = build_config['BUILD_VARIANTS'][host_arch]['VARIANTS'][tools_variant]['GRAPHS']
 else:
     tools_graphs = None
+
+if args.plot:
+    bcc.draw_graphic(package_graphs)
+    exit(0)
 
 # -l without -a
 if args.list and not args.dep:
