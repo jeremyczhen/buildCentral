@@ -112,16 +112,15 @@ def init_private_config(config):
 def import_configs(dst, src):
     for item in src:
         src_value = src[item]
-        if item == 'TOOLCHAIN':
-            dst['toolchain_root'] =  os.path.normpath(os.path.expanduser(src_value))
+        if item == 'TOOLCHAIN': dst['toolchain_root'] =  os.path.normpath(os.path.expanduser(src_value))
         elif item == 'TOOLCHAIN_CC':
-            dst['c_compiler'] = os.path.normpath(os.path.expanduser(src_value))
+            dst['c_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_CXX':
-            dst['cxx_compiler'] = os.path.normpath(os.path.expanduser(src_value))
+            dst['cxx_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_ASM':
-            dst['asm_compiler'] = os.path.normpath(os.path.expanduser(src_value))
+            dst['asm_compiler'] = os.path.expanduser(src_value)
         elif item == 'TOOLCHAIN_AR':
-            dst['archiver'] = os.path.normpath(os.path.expanduser(src_value))
+            dst['archiver'] = os.path.expanduser(src_value)
         elif item == 'SYSROOT':
             dst['sys_root'] =  [os.path.normpath(os.path.expanduser(x)) for x in src_value]
         elif item == 'COMPILER_TYPE':

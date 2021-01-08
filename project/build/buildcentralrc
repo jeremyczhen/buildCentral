@@ -36,7 +36,7 @@
         "TOOLCHAIN_CXX"     : "D:/ProgramFile/Linaro/gcc-linaro-arm-linux-gnueabihf-4.9-2014.07/bin/arm-linux-gnueabihf-g++.exe",
         "COMPILER_TYPE"     : "GNU",
         "TARGET_ARCH"       : "arm",
-        "TARGET_OS"         : "QNX",
+        "TARGET_OS"         : "LINUX",
         "REL_FLAGS"         : "-O3",
         "DBG_FLAGS"         : "-g -O0",
         "MACRO_DEF"         : {"__LINUX__" : null},
