@@ -241,7 +241,7 @@ if args.info:
     exit(0)
 
 def do_print(line):
-    print(line),
+    print(line.encode().rstrip())
 
 not_build = False
 if args.clean and not args.clean_build:
